@@ -383,7 +383,8 @@ const avatar = name => `<span class="av" style="background:${personColor(name)}"
 function api(fn,...args){
   if(IS_DEMO && fn!=='api_login' && fn!=='api_logout') args[0]=Demo.auth(args[0]);
   if(!IS_DEMO) return new Promise((res,rej)=>{
-    const timer=setTimeout(()=>rej(new Error('伺服器沒有回應，請重新整理再試一次')),30000);
+    const slow=/^api_(ai|testAi|sendDailyReport|import)/.test(fn);
+    const timer=setTimeout(()=>rej(new Error(slow?'AI 處理時間過長，請稍後再試一次':'伺服器沒有回應，請重新整理再試一次')),slow?120000:30000);
     google.script.run.withSuccessHandler(r=>{clearTimeout(timer);res(r);}).withFailureHandler(e=>{clearTimeout(timer);rej(e);})[fn](...args);
   });
   try{ return Promise.resolve(JSON.parse(JSON.stringify(Demo[fn](...args)))); }catch(e){ return Promise.reject(e); }

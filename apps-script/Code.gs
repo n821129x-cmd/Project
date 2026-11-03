@@ -533,7 +533,7 @@ function api_saveSettings(token, v) {
 
 function api_testAi(token, key, model) {
   mustSuper_(token);
-  const txt = gemini_('請只回覆「連線成功」四個字。', String(key || '').trim(), String(model || '').trim());
+  const txt = gemini_('請只回覆「連線成功」四個字。', String(key || '').trim(), String(model || '').trim(), 20000);
   const want = String(model || '').trim() || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL);
   return txt + (LAST_AI_MODEL && LAST_AI_MODEL !== want ? '（' + want + ' 目前忙碌或無法使用，這次改用 ' + LAST_AI_MODEL + '；平常使用時也會自動切換）' : '');
 }
@@ -561,7 +561,7 @@ const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemi
 let LAST_AI_MODEL = '';
 
 /** 呼叫 Gemini；遇到暫時忙碌（429/500/503）會重試，仍失敗就自動改用其他模型 */
-function gemini_(prompt, keyOverride, modelOverride) {
+function gemini_(prompt, keyOverride, modelOverride, budgetMs) {
   const key = keyOverride || geminiKey_();
   if (!key) throw new Error('尚未設定 Gemini API 金鑰：請最高管理者到「系統設定」分頁貼上金鑰');
   const first = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
@@ -574,9 +574,10 @@ function gemini_(prompt, keyOverride, modelOverride) {
   let lastBusy = '';
   for (let mi = 0; mi < models.length; mi++) {
     const model = models[mi];
-    const tries = mi === 0 ? 3 : 1;                 // 指定模型重試 3 次，備用模型各試 1 次
+    const tries = (mi === 0 && !(budgetMs && budgetMs <= 20000)) ? 3 : 1;   // 平常：指定模型重試 3 次；快速測試：每個模型各試 1 次
+    if (Date.now() - started > (budgetMs || 60000)) break;
     for (let a = 0; a < tries; a++) {
-      if (Date.now() - started > 45000) break;       // 避免超過網頁等待時間
+      if (Date.now() - started > (budgetMs || 60000)) break;   // 避免超過網頁等待時間
       const r = geminiOnce_(model, key, body);
       if (r.ok) { LAST_AI_MODEL = model; return r.text; }
       if (r.fatal) throw new Error(r.error);
