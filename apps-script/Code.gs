@@ -36,8 +36,8 @@ const TASK_COLS = [
   ['status', '狀態'], ['progress', '進度'], ['latest', '最新回報'], ['waitingFor', '等待對象'],
   ['link', '連結'], ['updatedAt', '最後更新'], ['notifyDone', '完成通知']
 ];
-const PEOPLE_COLS = ['姓名', '角色', 'Email', 'LINE名稱', '帳號', '密碼'];
-const ADMIN_ROW = ['管理者', '主管', '', '', 'n821129x', 'n821129x'];
+const PEOPLE_COLS = ['姓名', '角色', 'Email', 'LINE名稱', '帳號', '密碼', '直屬主管', '性別', '造型'];
+const ADMIN_ROW = ['管理者', '管理者', '', '', 'n821129x', 'n821129x', '', '', ''];
 const SESSION_DAYS = 14;
 const LOG_COLS = ['時間', 'ID', '回報人', '狀態', '進度', '內容', '來源', '訊息ID'];
 const CONFIG_DEFAULTS = [
@@ -406,6 +406,8 @@ function api_sendDailyReport(token, lineText, aiText) {
 
   // 收件人
   let to = String(cfg['日報收件人'] || '').split(/[,，;；\s]+/).filter(x => /@/.test(x));
+  const sup = findPerson_(people, me.supervisor);
+  if (!to.length && sup && sup.role === '主管' && sup.email && sup.name !== actor) to = [sup.email];
   if (!to.length) {
     const owners = tasks.map(t => t.owner).filter((v, i, a) => v && a.indexOf(v) === i)
       .map(n => findPerson_(people, n)).filter(p => p && p.role === '主管' && p.email && p.name !== actor);
@@ -670,7 +672,7 @@ function api_aiPerson(token, name) {
 function api_aiRange(token, from, to, who) {
   const actor = auth_(token);
   const me = findPerson_(getPeople_(), actor);
-  if (!me || !me.super) throw new Error('只有最高管理者可以使用 AI 區間分析');
+  if (!me || me.role !== '主管') throw new Error('只有主管可以使用 AI 分析');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error('請選擇正確的日期區間');
   const today = fmt_(new Date(), 'yyyy-MM-dd');
   const people = getPeople_().filter(p => !who || p.name === who);
@@ -696,6 +698,66 @@ function api_aiRange(token, from, to, who) {
   return gemini_(prompt);
 }
 
+/* ───────────── 花園廣場 ───────────── */
+
+/** 廣場資料：每個人的造型、件數（只有數字，不含工作內容）與位置 */
+function api_plaza(token) {
+  const actor = auth_(token);
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const tasks = readTasks_();
+  const props = PropertiesService.getScriptProperties().getProperties();
+  return {
+    me: actor,
+    people: getPeople_().map(p => {
+      const mine = tasks.filter(t => t.assignee === p.name);
+      const open = mine.filter(t => t.status !== '完成');
+      let pos = null;
+      try { pos = props['pos_' + p.name] ? JSON.parse(props['pos_' + p.name]) : null; } catch (e) { pos = null; }
+      return {
+        name: p.name, role: p.role, super: !!p.super, gender: p.gender, avatar: p.avatar,
+        open: open.length,
+        overdue: open.filter(t => isOverdue_(t, today)).length,
+        review: open.filter(t => t.status === '待確認').length,
+        waiting: open.filter(t => t.status === '等待外部').length,
+        paused: open.filter(t => t.status === '暫停').length,
+        todo: open.filter(t => t.status === '未開始').length,
+        doneWeek: mine.filter(t => t.status === '完成' && t.doneAt instanceof Date && (Date.now() - t.doneAt.getTime()) < 7 * 864e5).length,
+        bal: open.map(t => isOverdue_(t, today) ? 'od' : t.status === '待確認' ? 'review' : t.status === '等待外部' ? 'wait' : t.status === '暫停' ? 'pause' : t.status === '未開始' ? 'todo' : 'doing')
+          .sort((x, y) => ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(x) - ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(y)),
+        x: pos ? pos.x : null, y: pos ? pos.y : null
+      };
+    })
+  };
+}
+
+function api_plazaMove(token, x, y) {
+  const actor = auth_(token);
+  const nx = Math.max(0, Math.min(1200, Math.round(Number(x) || 0)));
+  const ny = Math.max(0, Math.min(720, Math.round(Number(y) || 0)));
+  PropertiesService.getScriptProperties().setProperty('pos_' + actor, JSON.stringify({ x: nx, y: ny, t: Date.now() }));
+  return true;
+}
+
+/** 自己換造型（1～30）與性別 */
+function api_setAvatar(token, avatar, gender) {
+  const actor = auth_(token);
+  const a = Math.max(1, Math.min(30, parseInt(avatar, 10) || 1));
+  const g = gender === '女' ? '女' : '男';
+  const sh = sheet_(SHEET.PEOPLE);
+  ensurePeopleCols_();
+  const vals = sh.getDataRange().getValues();
+  const head = vals[0].map(String);
+  const cn = head.indexOf('姓名'), ca = head.indexOf('造型'), cg = head.indexOf('性別');
+  for (let i = 1; i < vals.length; i++) {
+    if (String(vals[i][cn]).trim() === actor) {
+      sh.getRange(i + 1, ca + 1).setValue(a);
+      sh.getRange(i + 1, cg + 1).setValue(g);
+      break;
+    }
+  }
+  return api_plaza(token);
+}
+
 /* ───────────── 人員管理（主管） ───────────── */
 
 function mustManager_(token) {
@@ -705,7 +767,8 @@ function mustManager_(token) {
 }
 
 function peopleForAdmin_() {
-  return getPeople_().map(p => ({ name: p.name, role: p.role, email: p.email, line: p.line, account: p.account, hasPassword: !!p.password }));
+  return getPeople_().map(p => ({ name: p.name, role: p.role, super: !!p.super, email: p.email, line: p.line, account: p.account, hasPassword: !!p.password,
+    supervisor: p.supervisor, gender: p.gender, avatar: p.avatar }));
 }
 
 function api_people(token) {
@@ -732,6 +795,9 @@ function api_deletePerson(token, name) {
   const people = getPeople_();
   const target = findPerson_(people, name);
   if (!target) throw new Error('找不到人員：' + name);
+  const meP = findPerson_(people, actor);
+  if (target.role === '主管' && !(meP && meP.super)) throw new Error('只有管理者可以刪除主管');
+  if (target.super) throw new Error('不能刪除管理者帳號');
   if (target.role === '主管' && people.filter(p => p.role === '主管').length <= 1) throw new Error('至少要保留一位主管');
   const open = readTasks_().filter(t => t.assignee === name && t.status !== '完成').length;
   if (open) throw new Error(name + ' 還有 ' + open + ' 件未完成的工作，請先轉派');
@@ -768,7 +834,9 @@ function api_importPeople(token, rows) {
 
 function upsertPerson_(p, original, actor, fromImport) {
   const name = String(p.name || '').trim();
-  const role = /主管|管理/.test(String(p.role || '')) ? '主管' : '員工';
+  const actorP = findPerson_(getPeople_(), actor);
+  const isSuper = !!(actorP && actorP.super);
+  let roleRaw = /管理者/.test(String(p.role || '')) ? '管理者' : (/主管/.test(String(p.role || '')) ? '主管' : '員工');
   const email = String(p.email || '').trim().toLowerCase();
   const account = String(p.account || '').trim();
   const password = p.password == null ? '' : String(p.password);
@@ -780,7 +848,18 @@ function upsertPerson_(p, original, actor, fromImport) {
   if (account && others.some(x => x.account && x.account.toLowerCase() === account.toLowerCase())) throw new Error('帳號「' + account + '」已被使用');
   const old = original ? findPerson_(people, original) : null;
   if (original && !old) throw new Error('找不到人員：' + original);
-  if (old && original === actor && role !== '主管') throw new Error('不能把自己改成員工');
+  // 角色與直屬主管只有管理者能設定；一般主管只能維護員工的基本資料
+  let supervisor = p.supervisor == null ? (old ? old.supervisor : '') : String(p.supervisor || '').trim();
+  if (!isSuper) {
+    if (old && old.role === '主管' && old.name !== actor) throw new Error('只有管理者可以修改主管的資料');
+    roleRaw = old ? (old.roleRaw || old.role) : '員工';
+    supervisor = old ? old.supervisor : '';
+  }
+  if (old && old.super && roleRaw !== '管理者' && old.name === actor) roleRaw = '管理者';   // 管理者不能把自己降級
+  if (supervisor && !people.some(x => x.name === supervisor && x.role === '主管')) throw new Error('直屬主管「' + supervisor + '」不是主管');
+  if (supervisor === name) supervisor = '';
+  const gender = p.gender == null ? (old ? old.gender : '') : (p.gender === '女' ? '女' : (p.gender === '男' ? '男' : ''));
+  const avatar = p.avatar == null ? (old ? old.avatar : 0) : (parseInt(p.avatar, 10) || 0);
   if (account && !password && !(old && old.password)) throw new Error('有帳號就要設定密碼');
   if (password && password.length < 4) throw new Error('密碼至少 4 個字');
 
@@ -788,7 +867,7 @@ function upsertPerson_(p, original, actor, fromImport) {
   ensurePeopleCols_();
   const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const rec = {
-    '姓名': name, '角色': (old && old.roleRaw === '管理者' && role === '主管') ? '管理者' : role, 'Email': email,
+    '姓名': name, '角色': roleRaw, 'Email': email, '直屬主管': supervisor, '性別': gender, '造型': avatar || '',
     'LINE名稱': p.line == null && old ? old.line : String(p.line || '').trim(),
     '帳號': fromImport && !account && old ? old.account : account,
     '密碼': password || (old ? old.password : '')
@@ -800,10 +879,18 @@ function upsertPerson_(p, original, actor, fromImport) {
     for (let i = 1; i < vals.length; i++) if (String(vals[i][col]).trim() === original) { row = i + 1; break; }
     const cur = vals[row - 1];
     sh.getRange(row, 1, 1, head.length).setValues([head.map((h, i) => (h in rec) ? rec[h] : cur[i])]);
-    if (name !== original) renameInTasks_(original, name);
+    if (name !== original) { renameInTasks_(original, name); renameSupervisor_(original, name); }
   } else {
     sh.appendRow(head.map(h => (h in rec) ? rec[h] : ''));
   }
+}
+
+function renameSupervisor_(from, to) {
+  const sh = sheet_(SHEET.PEOPLE);
+  const vals = sh.getDataRange().getValues();
+  const c = vals[0].map(String).indexOf('直屬主管');
+  if (c < 0 || vals.length < 2) return;
+  sh.getRange(2, c + 1, vals.length - 1, 1).setValues(vals.slice(1).map(r => [String(r[c]).trim() === from ? to : r[c]]));
 }
 
 /** 改名時一併更新工作的承辦人／負責人 */
@@ -943,7 +1030,11 @@ function subjectFor_(t) {
   return '【代辦 #' + t.id + '】' + (title.length > 40 ? title.slice(0, 40) + '…' : title);
 }
 
+/** 通知對象：承辦人的直屬主管 → 工作負責主管 → 所有主管 */
 function managersFor_(t, people) {
+  const a = findPerson_(people, t.assignee);
+  const sup = a ? findPerson_(people, a.supervisor) : null;
+  if (sup && sup.role === '主管' && sup.email) return [sup];
   const owner = findPerson_(people, t.owner);
   if (owner && owner.role === '主管' && owner.email) return [owner];
   return people.filter(p => p.role === '主管' && p.email);
@@ -1139,14 +1230,21 @@ function dailyDigest_(force) {
     const list = tasks.filter(t => t.assignee === p.name && (t.status !== '完成' || recentDone(t)));
     if (list.length) sections.push({ name: p.name, text: buildReportText_(list, sal, today, false) });
   });
-  if (!sections.length && !alerts.length) return;
-  const plain = (alerts.length ? '【需要注意】\n' + alerts.join('\n') + '\n\n' : '') +
-    sections.map(s => '■ ' + s.name + '\n' + s.text).join('\n\n');
-  const html = mailShell_(cfg, md + ' 團隊作業摘要',
-    (alerts.length ? '<div style="background:#FDEDF4;border-radius:4px;padding:10px 14px;margin-bottom:16px;color:#A2275C"><b>需要注意</b><br>' +
-      alerts.map(esc_).join('<br>') + '</div>' : '') +
-    sections.map(s => '<div style="font-weight:700;color:#2D5BE3;margin:18px 0 6px">■ ' + esc_(s.name) + '</div>' + preHtml_(s.text)).join(''));
-  managers.forEach(m => GmailApp.sendEmail(m.email, '【團隊摘要】' + md + ' 作業進度', plain, { htmlBody: html, name: name }));
+  // 每位主管只收到自己的直屬員工；管理者與「未設定直屬主管」的員工全部主管都會收到
+  managers.forEach(m => {
+    const mine = n => { const p = findPerson_(people, n); return m.super || !p || !p.supervisor || p.supervisor === m.name || n === m.name; };
+    const al = alerts.filter(a => { const mm = a.match(/｜([^｜]+)｜/); return !mm || mine(mm[1]); })
+      .map(a => /未寄日報/.test(a) ? a.replace(/：(.*)$/, (x, list) => { const ns = list.split('、').filter(mine); return ns.length ? '：' + ns.join('、') : ''; }) : a)
+      .filter(a => !/未寄日報$/.test(a) && !/未寄日報：$/.test(a));
+    const sec = sections.filter(s => mine(s.name));
+    if (!sec.length && !al.length) return;
+    const plain = (al.length ? '【需要注意】\n' + al.join('\n') + '\n\n' : '') + sec.map(s => '■ ' + s.name + '\n' + s.text).join('\n\n');
+    const html = mailShell_(cfg, md + ' 團隊作業摘要',
+      (al.length ? '<div style="background:#FDEDF4;border-radius:4px;padding:10px 14px;margin-bottom:16px;color:#A2275C"><b>需要注意</b><br>' +
+        al.map(esc_).join('<br>') + '</div>' : '') +
+      sec.map(s => '<div style="font-weight:700;color:#2D5BE3;margin:18px 0 6px">■ ' + esc_(s.name) + '</div>' + preHtml_(s.text)).join(''));
+    GmailApp.sendEmail(m.email, '【團隊摘要】' + md + ' 作業進度', plain, { htmlBody: html, name: name });
+  });
 }
 
 /** 產生回報說明：第一句為「回報開頭」，下面逐項列出 */
@@ -1384,7 +1482,10 @@ function getPeople_() {
       email: get(r, 'Email').toLowerCase(),
       line: get(r, 'LINE名稱'),
       account: get(r, '帳號'),
-      password: get(r, '密碼')
+      password: get(r, '密碼'),
+      supervisor: get(r, '直屬主管'),
+      gender: get(r, '性別') === '女' ? '女' : (get(r, '性別') === '男' ? '男' : ''),
+      avatar: parseInt(get(r, '造型'), 10) || 0
     }));
 }
 function findPerson_(people, name) { return people.filter(p => p.name === name)[0]; }
