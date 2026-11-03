@@ -47,7 +47,8 @@ const CONFIG_DEFAULTS = [
   ['未開始提醒天數', 2, '指派超過幾天仍未開始，列入主管摘要提醒'],
   ['等待外部提醒天數', 7, '等待外部超過幾天沒更新，列入主管摘要提醒'],
   ['Gemini模型', DEFAULT_MODEL, 'AI 彙整使用的模型；API 金鑰請放在 Apps Script「專案設定 → 指令碼屬性」的 GEMINI_API_KEY'],
-  ['日報收件人', '', '留空＝寄給該員工的負責主管（或所有主管）；也可填 Email，多個用逗號分隔']
+  ['日報收件人', '', '留空＝寄給該員工的負責主管（或所有主管）；也可填 Email，多個用逗號分隔'],
+  ['日報提醒時間', '23:30', '員工當天沒寄日報時自動寄提醒信的時間（以 15 分鐘為單位，會有前後 15 分鐘誤差）']
 ];
 
 /* ───────────── 選單與初始化 ───────────── */
@@ -59,6 +60,7 @@ function onOpen() {
     .addSeparator()
     .addItem('立即寄送每日摘要（測試）', 'dailyDigestNow')
     .addItem('立即讀取回信（測試）', 'scanInbox')
+    .addItem('立即寄送日報提醒（測試）', 'eveningReminderNow')
     .addToUi();
 }
 
@@ -91,14 +93,35 @@ function setup() {
   });
 }
 
+const TRIGGER_FNS = ['dailyDigest', 'scanInbox', 'eveningReminder'];
+
 function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(tr => {
-    if (['dailyDigest', 'scanInbox'].indexOf(tr.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(tr);
+    if (TRIGGER_FNS.indexOf(tr.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(tr);
   });
-  let h = parseInt(getConfig_()['每日摘要時間'], 10);
+  const cfg = getConfig_();
+  let h = parseInt(cfg['每日摘要時間'], 10);
   if (isNaN(h) || h < 0 || h > 23) h = 8;
   ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(h).inTimezone(TZ).create();
   ScriptApp.newTrigger('scanInbox').timeBased().everyMinutes(10).create();
+  const rt = reminderTime_(cfg);
+  ScriptApp.newTrigger('eveningReminder').timeBased().everyDays(1).atHour(rt.h).nearMinute(rt.m).inTimezone(TZ).create();
+}
+
+/** 缺少任何一個自動排程就重新安裝（最高管理者登入時檢查） */
+function ensureTriggers_() {
+  try {
+    const have = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+    if (TRIGGER_FNS.some(f => have.indexOf(f) < 0)) installTriggers();
+  } catch (e) { /* 權限不足時略過 */ }
+}
+
+function reminderTime_(cfg) {
+  const m = String(cfg['日報提醒時間'] || '23:30').match(/(\d{1,2})\s*[:：]\s*(\d{1,2})/);
+  let h = m ? parseInt(m[1], 10) : 23, mi = m ? parseInt(m[2], 10) : 30;
+  if (isNaN(h) || h < 0 || h > 23) h = 23;
+  mi = Math.min(45, Math.round((isNaN(mi) ? 30 : mi) / 15) * 15);
+  return { h: h, m: mi, text: ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2) };
 }
 
 function ensureSheet_(ss, name, headers, defaults) {
@@ -207,6 +230,8 @@ function api_bootstrap(token) { return bootstrap_(auth_(token)); }
 function bootstrap_(actor) {
   const cfg = getConfig_();
   const all = getPeople_();
+  const meP = findPerson_(all, actor);
+  if (meP && meP.super) ensureTriggers_();
   const people = all.map(p => ({ name: p.name, role: p.role, hasEmail: !!p.email }));
   const me = findPerson_(all, actor);
   let tasks = [], projects = [];
@@ -348,7 +373,7 @@ function api_history(token, id) {
 
 /** AI 彙整今日進度（員工寄日報前預覽用） */
 function api_aiDaily(token) {
-  const actor = auth_(token);
+  const actor = mustManager_(token);
   return aiDailyText_(actor);
 }
 
@@ -362,7 +387,7 @@ function api_sendDailyReport(token, lineText, aiText) {
   const tasks = orderTasks_(readTasks_().filter(t => t.assignee === actor &&
     (t.status !== '完成' || (t.doneAt instanceof Date && fmt_(t.doneAt, 'yyyy-MM-dd') === today))));
   const text = String(lineText || '').trim() || buildReportText_(tasks, String(cfg['稱謂'] || '報告'), today, true);
-  let ai = String(aiText || '').trim();
+  let ai = me.role === '主管' ? String(aiText || '').trim() : '';   // 員工不能自行撰寫 AI 摘要，一律由系統產生
   if (!ai && geminiKey_()) { try { ai = aiDailyText_(actor); } catch (e) { ai = ''; } }
 
   // 收件人
@@ -467,6 +492,7 @@ function settingsView_() {
     title: String(cfg['系統名稱'] || ''),
     reportTo: String(cfg['日報收件人'] || ''),
     digestHour: String(cfg['每日摘要時間'] === '' || cfg['每日摘要時間'] == null ? 8 : cfg['每日摘要時間']),
+    reminderTime: reminderTime_(cfg).text,
     url: String(cfg['系統網址'] || '')
   };
 }
@@ -493,7 +519,12 @@ function api_saveSettings(token, v) {
     if (isNaN(h) || h < 0 || h > 23) throw new Error('每日摘要時間請填 0～23');
     const old = parseInt(getConfig_()['每日摘要時間'], 10);
     setConfig_('每日摘要時間', h);
-    if (h !== old && ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dailyDigest')) installTriggers();
+    if (h !== old) installTriggers();
+  }
+  if (v.reminderTime != null) {
+    const before = reminderTime_(getConfig_()).text;
+    setConfig_('日報提醒時間', reminderTime_({ '日報提醒時間': v.reminderTime }).text);
+    if (reminderTime_(getConfig_()).text !== before) installTriggers();
   }
   return { settings: settingsView_(), data: bootstrap_(actor) };
 }
@@ -802,7 +833,11 @@ function api_importTasks(token, rows, notify) {
   } finally {
     lock.releaseLock();
   }
-  if (notify) created.filter(t => t.status !== '完成').forEach(t => { try { sendAssignMail_(t, people, ''); } catch (e) { /* 額度用完就略過 */ } });
+  if (notify) {
+    const byPerson = {};
+    created.filter(t => t.status !== '完成').forEach(t => { (byPerson[t.assignee] = byPerson[t.assignee] || []).push(t); });
+    Object.keys(byPerson).forEach(n => { try { sendBatchAssignMail_(n, byPerson[n], people, actor); } catch (e) { result.errors.push('寄信給 ' + n + ' 失敗：' + e.message); } });
+  }
   result.data = bootstrap_(actor);
   return result;
 }
@@ -869,6 +904,74 @@ function managersFor_(t, people) {
   return people.filter(p => p.role === '主管' && p.email);
 }
 
+const SYSTEM_HINT = '建議到系統上回報，進度、時間與歷程會記錄得最完整正確；不方便開系統時，也可以直接回覆這封信。';
+
+function hintHtml_(cfg) {
+  const url = String(cfg['系統網址'] || '');
+  return '<div style="background:#ECF1FE;border-left:4px solid #2D5BE3;border-radius:4px;padding:10px 14px;margin:0 0 16px;font-size:14px;color:#1C1B2E">' +
+    '📌 <b>建議到系統上回報</b>：進度、時間與歷程會記錄得最完整正確' +
+    (url ? '　<a href="' + esc_(url) + '" style="color:#2D5BE3;font-weight:600">開啟系統 →</a>' : '') +
+    '<br><span style="color:#6C6B80;font-size:13px">不方便開系統時，也可以直接回覆這封信（格式見下方）。</span></div>';
+}
+
+/** 多件工作的回信格式說明（每日作業、匯入通知、提醒信共用） */
+function multiGuideHtml_(tasks) {
+  const ex = tasks.slice(0, 2).map((t, i) => '#' + t.id + (i === 0 ? ' 狀態：完成 內容：已寄出並通知對方' : ' 進度：60 內容：說明目前做了什麼'));
+  return '<div style="margin-top:18px;background:#F6EFFD;border:1px solid #E6D2F8;border-radius:6px;padding:14px 16px">' +
+    '<div style="font-weight:700;color:#3B1E63;margin-bottom:6px">也可以直接回覆這封信</div>' +
+    '<div style="font-size:13.5px;color:#6C6B80;margin-bottom:8px">在回信最上面，一件工作寫一行，開頭是工作編號，只寫有變動的工作：</div>' +
+    '<pre style="margin:0;font-family:inherit;background:#fff;border-radius:4px;padding:10px 12px;font-size:14px;white-space:pre-wrap">' + ex.map(esc_).join('\n') + '</pre>' +
+    '<div style="font-size:13px;color:#6C6B80;margin-top:8px">狀態可填：進行中、等待外部、暫停、完成（完成會送主管確認）；可加「等待：對象」</div></div>';
+}
+function multiGuidePlain_(tasks) {
+  return '──── 回信格式 ────\n在回信最上面，一件工作寫一行（只寫有變動的）：\n' +
+    tasks.slice(0, 2).map((t, i) => '#' + t.id + (i === 0 ? ' 狀態：完成 內容：已寄出並通知對方' : ' 進度：60 內容：說明目前做了什麼')).join('\n') +
+    '\n狀態可填：進行中、等待外部、暫停、完成';
+}
+
+/** Excel 匯入：每位員工只寄一封彙整通知 */
+function sendBatchAssignMail_(name, tasks, people, actor) {
+  const p = findPerson_(people, name);
+  if (!p || !p.email || !tasks.length) return;
+  const cfg = getConfig_();
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const list = orderTasks_(tasks);
+  const html = mailShell_(cfg, '新的工作通知（共 ' + list.length + ' 件）',
+    '<p style="margin:0 0 14px">' + esc_(name) + ' 您好，' + esc_(actor) + ' 指派了 ' + list.length + ' 件工作給您：</p>' +
+    hintHtml_(cfg) + taskTableHtml_(list, today) + multiGuideHtml_(list));
+  const plain = name + ' 您好，' + actor + ' 指派了 ' + list.length + ' 件工作給您：\n\n' +
+    list.map(t => '#' + t.id + ' ' + lineCore_(t) + '｜期限 ' + dateStr_(t.due)).join('\n') + '\n\n' + SYSTEM_HINT +
+    (cfg['系統網址'] ? '\n開啟系統：' + cfg['系統網址'] : '') + '\n\n' + multiGuidePlain_(list);
+  GmailApp.sendEmail(p.email, '【代辦通知】' + fmt_(new Date(), 'M/d') + ' 新指派 ' + list.length + ' 件工作', plain,
+    { htmlBody: html, name: String(cfg['系統名稱'] || '每日工作追蹤') });
+}
+
+/** 晚上提醒：今天還沒寄日報的員工 */
+function eveningReminderNow() { eveningReminder_(true); }
+function eveningReminder() { eveningReminder_(false); }
+function eveningReminder_(force) {
+  const cfg = getConfig_();
+  const now = new Date();
+  if (!force && Number(fmt_(now, 'u')) >= 6 && String(cfg['週末寄送摘要']) !== '是') return;
+  const today = fmt_(now, 'yyyy-MM-dd');
+  const tasks = readTasks_();
+  getPeople_().forEach(p => {
+    if (p.role === '主管' || !p.email || reportedOn_(p.name, today)) return;
+    const mine = orderTasks_(tasks.filter(t => t.assignee === p.name && t.status !== '完成'));
+    if (!mine.length) return;
+    const url = String(cfg['系統網址'] || '');
+    const html = mailShell_(cfg, '提醒：今天尚未寄出工作日報',
+      '<p style="margin:0 0 14px">' + esc_(p.name) + ' 您好，系統沒有收到您今天（' + fmt_(now, 'M/d') + '）的工作日報。</p>' +
+      '<div style="background:#FFF5D6;border-left:4px solid #C98A00;border-radius:4px;padding:10px 14px;margin:0 0 16px;font-size:14px">' +
+      '請到系統的「我的工作」更新今日進度，再按 <b>「今日回報／寄日報」</b> 寄出。' + (url ? '　<a href="' + esc_(url) + '" style="color:#2D5BE3;font-weight:600">開啟系統 →</a>' : '') +
+      '<br><span style="color:#6C6B80;font-size:13px">在系統上回報，進度與時間會記錄得最完整正確；也可以直接回覆這封信更新進度。</span></div>' +
+      '<div style="font-weight:700;margin:6px 0 8px">您目前的工作（' + mine.length + ' 件）</div>' + taskTableHtml_(mine, today) + multiGuideHtml_(mine));
+    const plain = p.name + ' 您好，系統沒有收到您今天的工作日報。\n請到系統「我的工作」更新進度後，按「今日回報／寄日報」寄出。' +
+      (url ? '\n開啟系統：' + url : '') + '\n\n' + mine.map(t => '#' + t.id + ' ' + lineCore_(t) + '｜' + t.status).join('\n') + '\n\n' + multiGuidePlain_(mine);
+    GmailApp.sendEmail(p.email, '【代辦提醒】' + fmt_(now, 'M/d') + ' 尚未寄出工作日報', plain, { htmlBody: html, name: String(cfg['系統名稱'] || '每日工作追蹤') });
+  });
+}
+
 function sendAssignMail_(t, people, note) {
   const p = findPerson_(people, t.assignee);
   if (!p || !p.email) return;
@@ -881,6 +984,7 @@ function sendAssignMail_(t, people, note) {
     t.assignee + ' 您好，', '',
     note || (t.owner + ' 指派了一項工作給您：'), '',
     rows.map(r => r[0] + '：' + r[1]).join('\n'), '',
+    SYSTEM_HINT,
     cfg['系統網址'] ? '開啟系統：' + cfg['系統網址'] + '\n' : '',
     '──── 回報方式 ────',
     '直接回覆這封信，在最上面照以下格式填寫（進度可省略）：', '',
@@ -890,7 +994,7 @@ function sendAssignMail_(t, people, note) {
   ].join('\n');
   const html = mailShell_(cfg, '新的工作 #' + t.id,
     '<p style="margin:0 0 14px">' + esc_(t.assignee) + ' 您好，' + esc_(note || (t.owner + ' 指派了一項工作給您：')) + '</p>' +
-    tableHtml_(rows) + guideHtml_(guide));
+    hintHtml_(cfg) + tableHtml_(rows) + guideHtml_(guide));
   GmailApp.sendEmail(p.email, subjectFor_(t), plain, { htmlBody: html, name: String(cfg['系統名稱'] || '每日工作追蹤') });
 }
 
@@ -956,11 +1060,15 @@ function dailyDigest_(force) {
       if (isOverdue_(t, today)) alerts.push('⚠ 逾期：' + lineCore_(t) + '（期限 ' + due + '）');
       else if (t.status !== '待確認' && (due === tomorrow || due === today)) alerts.push('⏰ ' + (due === today ? '今天' : '明天') + '到期：' + lineCore_(t));
     });
-    const plain = (alerts.length ? alerts.join('\n') + '\n\n' : '') + text;
+    const ordered = orderTasks_(mine);
+    const plain = (alerts.length ? alerts.join('\n') + '\n\n' : '') + text + '\n\n' +
+      ordered.map(t => '#' + t.id + ' ' + lineCore_(t)).join('\n') + '\n\n' + SYSTEM_HINT + '\n\n' + multiGuidePlain_(ordered);
     const html = mailShell_(cfg, md + ' 今日預計作業事項',
+      hintHtml_(cfg) +
       (alerts.length ? '<div style="background:#FDEDF4;border-radius:4px;padding:10px 14px;margin-bottom:14px;color:#A2275C">' +
-        alerts.map(esc_).join('<br>') + '</div>' : '') + preHtml_(text));
-    GmailApp.sendEmail(p.email, '【每日作業】' + md + ' ' + p.name + ' 今日預計作業事項', plain, { htmlBody: html, name: name });
+        alerts.map(esc_).join('<br>') + '</div>' : '') + preHtml_(text) +
+      '<div style="font-weight:700;margin:18px 0 8px">工作明細</div>' + taskTableHtml_(ordered, today) + multiGuideHtml_(ordered));
+    GmailApp.sendEmail(p.email, '【代辦｜每日作業】' + md + ' ' + p.name + ' 今日預計作業事項', plain, { htmlBody: html, name: name });
   });
 
   // 主管：全員清單＋提醒
@@ -1060,13 +1168,16 @@ function scanInbox() {
     th.getMessages().forEach(msg => {
       const mid = msg.getId();
       if (processed[mid]) return;
-      const m = String(msg.getSubject()).match(/代辦\s*#\s*(T\d{3,})/i);
-      if (!m) return;
+      const subj = String(msg.getSubject());
+      if (!/代辦/.test(subj)) return;
+      const m = subj.match(/代辦\s*#\s*(T\d{3,})/i);
       const from = extractEmail_(msg.getFrom());
       if (from === me) return;
       let res;
       try {
-        res = handleReply_(m[1].toUpperCase(), from, msg.getPlainBody(), people, mid);
+        const body = msg.getPlainBody();
+        const multi = /^\s*#?\s*T\d{3,}\b/im.test(stripQuoted_(body));
+        res = (multi || !m) ? handleMultiReply_(from, body, people, mid) : handleReply_(m[1].toUpperCase(), from, body, people, mid);
       } catch (e) {
         res = { ok: false, error: e.message };
       }
@@ -1076,8 +1187,8 @@ function scanInbox() {
       } else {
         th.addLabel(failLabel);
         markFailed_(mid);
-        msg.reply('這封回報沒有成功匯入系統：' + res.error + '\n\n' +
-          '請直接回覆，在最上面照格式填寫：\n狀態：進行中\n進度：50\n內容：說明\n\n狀態可填：進行中、等待外部、暫停、完成');
+        msg.reply('這封回報沒有成功匯入系統：' + res.error + '\n\n' + SYSTEM_HINT + '\n\n' +
+          '回信格式：在最上面一件工作寫一行，例如\n#T0012 狀態：完成 內容：已寄出\n#T0015 進度：60 內容：說明\n\n狀態可填：進行中、等待外部、暫停、完成');
       }
     });
   });
@@ -1093,6 +1204,37 @@ function handleReply_(id, from, body, people, mid) {
   if (!data) return { ok: false, error: '讀不到「狀態／進度／內容」任何一行' };
   if (data.statusRaw && !data.status) return { ok: false, error: '看不懂狀態「' + data.statusRaw + '」' };
   applyReport_(t, sender.name, data, 'Email', mid, people);
+  return { ok: true };
+}
+
+/** 一封信回報多件：每段以 #T0012 開頭，可同一行或分行寫 狀態／進度／內容 */
+function handleMultiReply_(from, body, people, mid) {
+  const sender = people.filter(p => p.email && p.email === from)[0];
+  if (!sender) return { ok: false, error: '您的 Email（' + from + '）不在人員名單中' };
+  const text = stripQuoted_(body);
+  const blocks = [];
+  let cur = null;
+  text.split('\n').forEach(raw => {
+    const mm = raw.match(/^\s*#?\s*(T\d{3,})\b[\s:：,，、-]*(.*)$/i);
+    if (mm) { cur = { id: mm[1].toUpperCase(), lines: [mm[2]] }; blocks.push(cur); return; }
+    if (cur) cur.lines.push(raw);
+  });
+  if (!blocks.length) return { ok: false, error: '找不到工作編號（例如 #T0012）' };
+  const errors = [];
+  let done = 0;
+  blocks.forEach(b => {
+    const joined = b.lines.join('\n').replace(/[ \t　]*(狀態|進度|內容|等待對象|等待)\s*[:：]/g, '\n$1：');
+    const data = parseReply_(joined);
+    if (!data || (!data.status && data.progress === '' && !data.content && !data.waitingFor)) return;
+    if (data.statusRaw && !data.status) { errors.push('#' + b.id + ' 看不懂狀態「' + data.statusRaw + '」'); return; }
+    const t = findTask_(b.id);
+    if (!t) { errors.push('#' + b.id + ' 找不到這件工作'); return; }
+    if (sender.name !== t.assignee && sender.role !== '主管') { errors.push('#' + b.id + ' 的承辦人是 ' + t.assignee); return; }
+    try { applyReport_(t, sender.name, data, 'Email', mid, people); done++; }
+    catch (e) { errors.push('#' + b.id + ' ' + e.message); }
+  });
+  if (errors.length) return { ok: false, error: (done ? '已更新 ' + done + ' 件，但' : '') + errors.join('；') };
+  if (!done) return { ok: false, error: '有寫工作編號，但沒有填狀態、進度或內容' };
   return { ok: true };
 }
 
@@ -1314,7 +1456,7 @@ function tableHtml_(rows) {
 }
 function guideHtml_(lines) {
   return '<div style="margin-top:18px;background:#F6EFFD;border:1px solid #E6D2F8;border-radius:6px;padding:14px 16px">' +
-    '<div style="font-weight:700;color:#3B1E63;margin-bottom:6px">直接回覆這封信即可回報</div>' +
+    '<div style="font-weight:700;color:#3B1E63;margin-bottom:6px">也可以直接回覆這封信</div>' +
     '<div style="font-size:13.5px;color:#6C6B80;margin-bottom:8px">在回信最上面照以下格式填寫，進度可省略：</div>' +
     '<pre style="margin:0;font-family:inherit;background:#fff;border-radius:4px;padding:10px 12px;font-size:14px">' + lines.map(esc_).join('\n') + '</pre>' +
     '<div style="font-size:13px;color:#6C6B80;margin-top:8px">狀態可填：進行中、等待外部、暫停、完成（完成會送主管確認）；等待外部時可加一行「等待：對象」</div></div>';
