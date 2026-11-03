@@ -34,7 +34,7 @@ const TASK_COLS = [
   ['owner', '負責人'], ['assignee', '承辦人'], ['due', '需完成日期'],
   ['assignedAt', '指派時間'], ['startedAt', '開始時間'], ['submittedAt', '提報時間'], ['doneAt', '完成時間'],
   ['status', '狀態'], ['progress', '進度'], ['latest', '最新回報'], ['waitingFor', '等待對象'],
-  ['link', '連結'], ['updatedAt', '最後更新']
+  ['link', '連結'], ['updatedAt', '最後更新'], ['notifyDone', '完成通知']
 ];
 const PEOPLE_COLS = ['姓名', '角色', 'Email', 'LINE名稱', '帳號', '密碼'];
 const ADMIN_ROW = ['管理者', '主管', '', '', 'n821129x', 'n821129x'];
@@ -286,7 +286,8 @@ function api_createTask(token, p) {
       due: parseDate_(p.due),
       assignedAt: now, startedAt: '', submittedAt: '', doneAt: '',
       status: '未開始', progress: '', latest: '', waitingFor: '',
-      link: String(p.link || '').trim(), updatedAt: now
+      link: String(p.link || '').trim(), updatedAt: now,
+      notifyDone: mgr && !selfAdd && p.notifyDone ? '是' : ''
     };
     writeTask_(t);
     log_(t.id, actor, '未開始', '', t.source === '主管交辦' ? '指派給 ' + assignee : '自行新增', '網頁');
@@ -317,6 +318,17 @@ function api_report(token, id, data) {
   const t = mustFindTask_(id);
   checkCanReport_(t, actor, people);
   applyReport_(t, actor, data || {}, '網頁', '', people);
+  return bootstrap_(actor);
+}
+
+/** 主管切換「員工提報完成時寄信通知」 */
+function api_setNotifyDone(token, id, on) {
+  const actor = mustManager_(token);
+  const t = mustFindTask_(id);
+  t.notifyDone = on ? '是' : '';
+  t.updatedAt = new Date();
+  writeTask_(t);
+  log_(t.id, actor, t.status, t.progress, on ? '設定：完成時寄信通知' : '設定：完成時不寄信', '網頁');
   return bootstrap_(actor);
 }
 
@@ -852,7 +864,8 @@ function api_importTasks(token, rows, notify) {
         submittedAt: v.status === '完成' ? now : '', doneAt: v.status === '完成' ? now : '',
         status: v.status, progress: v.status === '完成' && prog !== '' ? 100 : prog,
         latest: String(v.r.latest || '').trim(), waitingFor: v.status === '等待外部' ? String(v.r.waitingFor || '').trim() : '',
-        link: String(v.r.link || '').trim(), updatedAt: now
+        link: String(v.r.link || '').trim(), updatedAt: now,
+        notifyDone: /^(是|要|y|yes|v|true|1|✓|✔)$/i.test(String(v.r.notifyDone || '').trim()) ? '是' : ''
       };
       taskRows.push(head.map(h => { const c = TASK_COLS.filter(c => c[1] === h)[0]; return c ? (t[c[0]] == null ? '' : t[c[0]]) : ''; }));
       logRows.push([now, id, actor, t.status, t.progress, 'Excel 匯入，指派給 ' + t.assignee, 'Excel', '']);
@@ -905,7 +918,7 @@ function applyReport_(t, actor, data, source, msgId, people) {
   writeTask_(t);
   log_(t.id, actor, status, t.progress, data.content || '', source, msgId);
 
-  if (status === '待確認' && prev !== '待確認') sendSubmitMail_(t, people);
+  if (status === '待確認' && prev !== '待確認' && t.notifyDone === '是') sendSubmitMail_(t, people);   // 只有主管指定「完成時通知」的工作才寄信
   if (status === '完成' && prev !== '完成' && actor !== t.assignee) sendResultMail_(t, people, true, data.content);
   if (prev === '待確認' && status !== '待確認' && status !== '完成' && mgr) sendResultMail_(t, people, false, data.content);
 }
@@ -1396,6 +1409,7 @@ function readTasks_() {
     t.status = normStatus_(t.status) || '未開始';
     t.source = t.source || '主管交辦';
     t.progress = isNum_(t.progress) ? Number(t.progress) : '';
+    t.notifyDone = /^(是|true|TRUE)$/.test(String(t.notifyDone)) || t.notifyDone === true ? '是' : '';
     return t;
   }).filter(t => t.id);
 }
@@ -1441,7 +1455,7 @@ function toClient_(t) {
     assignedAt: fmt_(t.assignedAt, 'yyyy-MM-dd HH:mm'), startedAt: fmt_(t.startedAt, 'yyyy-MM-dd HH:mm'),
     submittedAt: fmt_(t.submittedAt, 'yyyy-MM-dd HH:mm'),
     doneAt: fmt_(t.doneAt, 'yyyy-MM-dd HH:mm'), updatedAt: fmt_(t.updatedAt, 'yyyy-MM-dd HH:mm'),
-    status: t.status, progress: t.progress, latest: t.latest, waitingFor: t.waitingFor, link: t.link
+    status: t.status, progress: t.progress, latest: t.latest, waitingFor: t.waitingFor, link: t.link, notifyDone: t.notifyDone === '是'
   };
 }
 

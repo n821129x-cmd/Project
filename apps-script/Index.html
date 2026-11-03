@@ -333,7 +333,7 @@ const S = {
   me:null, token:null, admin:null, sets:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部'},
-  form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true}
+  form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true, notifyDone:false}
 };
 const ICON = {
   grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>',
@@ -635,7 +635,7 @@ function cardHtml(t,view){
   return `<article class="card" data-act="detail" data-id="${t.id}" style="--pc:${pc};--pct:${hexA(pc,.07)}">
     <div class="viz">
       <div class="viz-top"><span class="big ${bigCls}">${esc(big)}</span>
-        <span class="chips"><span class="chip st-${cls}">${t.status}</span>${od?'<span class="chip st-od">逾期</span>':''}</span></div>
+        <span class="chips">${t.notifyDone&&isMgr(S.me)?'<span class="chip st-review" title="員工提報完成時會寄信通知">🔔</span>':''}<span class="chip st-${cls}">${t.status}</span>${od?'<span class="chip st-od">逾期</span>':''}</span></div>
       ${prog?`<div class="bar ${done?'done':''}"><i style="width:${t.progress}%"></i></div>`:''}
       <div class="tbar ${od?'od':''} ${done?'done':''}" title="期限時間消耗"><i style="width:${tp}%"></i></div>
       <div class="viz-sub"><span>${esc(runTxt)}</span><span>${remain}</span></div>
@@ -668,12 +668,15 @@ function assignHtml(){
       <div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https:\/\/"></div>
     </div>
     <div class="form-foot">
-      <label class="check"><input type="checkbox" data-bind="form.notify" ${f.notify?'checked':''}> 寄 Email 通知承辦人</label>
+      <div style="display:flex;gap:22px;flex-wrap:wrap">
+        <label class="check"><input type="checkbox" data-bind="form.notify" ${f.notify?'checked':''}> 寄 Email 通知承辦人</label>
+        <label class="check" title="預設不寄；勾選後，員工按「提報完成」時會寄信給您"><input type="checkbox" data-bind="form.notifyDone" ${f.notifyDone?'checked':''}> 🔔 員工提報完成時寄信通知我</label>
+      </div>
       <button class="btn primary" data-act="submitAssign">送出指派</button>
     </div>
     <div class="imp-box">
       <h3>Excel 批次匯入工作</h3>
-      <p>欄位：<code>類型</code> <code>專案名稱</code> <code>工作內容</code> <code>承辦人</code> <code>需完成日期</code>，選填 <code>連結</code> <code>狀態</code> <code>進度</code> <code>最新回報</code> <code>等待對象</code>。日期可寫 2026/11/10 或民國 115/11/10。</p>
+      <p>欄位：<code>類型</code> <code>專案名稱</code> <code>工作內容</code> <code>承辦人</code> <code>需完成日期</code>，選填 <code>連結</code> <code>狀態</code> <code>進度</code> <code>最新回報</code> <code>等待對象</code> <code>完成通知</code>（填「是」＝員工提報完成時寄信通知您）。日期可寫 2026/11/10 或民國 115/11/10。</p>
       <div class="imp-acts">
         <button class="btn" data-act="tpl" data-v="tasks">下載範本</button>
         <button class="btn purple" data-act="pickFile" data-v="tasks">選擇 Excel 檔匯入</button>
@@ -739,10 +742,10 @@ const IMPORT_SPEC={
     ['type','類型',['類型','工作類型']],['project','專案名稱',['專案名稱','專案','案名','案件']],['content','工作內容',['工作內容','代辦內容','待辦內容','內容','工作項目','事項']],
     ['assignee','承辦人',['承辦人','負責人員','員工','執行人']],['due','需完成日期',['需完成日期','完成日期','期限','到期日','截止日']],
     ['link','連結',['連結','網址','link']],['status','狀態',['狀態']],['progress','進度',['進度','完成度']],
-    ['latest','最新回報',['最新回報','回報內容','回報','備註']],['waitingFor','等待對象',['等待對象','等待']]],
+    ['latest','最新回報',['最新回報','回報內容','回報','備註']],['waitingFor','等待對象',['等待對象','等待']],['notifyDone','完成通知',['完成通知','完成時通知','通知']]],
     required:['content','assignee','due'],
-    sample:[['專案執行','北市圖資案','追蹤圖資轉檔進度','晏晨','2026/11/10','','等待外部','','叡揚報價單尚未提供','叡揚'],
-            ['臨時代辦','','彙整本週各圖資案作業進度','晏晨','115/11/07','','','','','']]}
+    sample:[['專案執行','北市圖資案','追蹤圖資轉檔進度','晏晨','2026/11/10','','等待外部','','叡揚報價單尚未提供','叡揚','是'],
+            ['臨時代辦','','彙整本週各圖資案作業進度','晏晨','115/11/07','','','','','','']]}
 };
 function xlsxReady(){ if(window.XLSX) return true; toast('Excel 元件載入失敗，請重新整理後再試',true); return false; }
 function downloadTemplate(kind){
@@ -1128,10 +1131,11 @@ function renderModal(){
   else if(m.kind==='detail' && t){
     const kv=[['編號','#'+t.id],['類型',t.type],['來源',t.source],['專案',t.project||'—'],['承辦人',t.assignee],['負責主管',t.owner||'—'],['狀態',t.status+(t.waitingFor&&t.status==='等待外部'?'（'+t.waitingFor+'）':'')],
       ['進度',hasProg(t)?t.progress+'%':'—'],['需完成日期',t.due||'—'],['指派時間',t.assignedAt||'—'],['開始時間',t.startedAt||'—'],['提報時間',t.submittedAt||'—'],['完成時間',t.doneAt||'—']];
+    if(isMgr(S.me)) kv.push(['完成通知',t.notifyDone?'🔔 員工提報完成時寄信通知':'不寄信（在待確認清單查看）']);
     if(t.link) kv.push(['連結',`<a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a>`]);
     const hist=m.history==null?'<div style="color:var(--faint);font-size:13.5px">載入中…</div>':
       (m.history.length?m.history.map(h=>`<div class="h-item"><span class="t">${esc(h.time.slice(5))}</span><span><b>${esc(h.actor)}</b>｜${esc(h.status)}${h.progress!==''&&h.progress!=null?' '+h.progress+'%':''}${h.source&&h.source!=='網頁'?`<span class="src">${esc(h.source)}</span>`:''}${h.content?'<br>'+esc(h.content):''}</span></div>`).join(''):'<div style="color:var(--faint);font-size:13.5px">尚無紀錄</div>');
-    const foot=isMgr(S.me)?`<button class="btn pink left" data-act="askDelete" data-id="${t.id}">刪除</button><button class="btn" data-act="closeModal">關閉</button>`:'';
+    const foot=isMgr(S.me)?`<button class="btn pink left" data-act="askDelete" data-id="${t.id}">刪除</button>${t.status!=='完成'?`<label class="check" style="margin-right:auto;color:var(--ink)"><input type="checkbox" data-act="toggleNotify" data-id="${t.id}" ${t.notifyDone?'checked':''}> 🔔 員工提報完成時寄信通知我</label>`:''}<button class="btn" data-act="closeModal">關閉</button>`:'';
     html=shell(esc(t.content),t.project?esc(t.project):'臨時代辦',
       `<dl class="kv">${kv.map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='連結'?r[1]:esc(r[1])}</dd>`).join('')}</dl>
        ${t.latest?`<div style="margin-top:14px;background:${hexA(dc,.08)};border-left:3px solid ${dc};border-radius:4px;padding:10px 12px;font-size:14px">${esc(t.latest)}</div>`:''}
@@ -1145,6 +1149,10 @@ const A = {
   noop(){},
   tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; if(S.tab==='settings') S.sets=null; render(); window.scrollTo(0,0); },
   f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
+  toggleNotify(el,e){
+    const on=el.checked, id=el.dataset.id;
+    api('api_setNotifyDone',S.token,id,on).then(res=>{ applyData(res); const m=S.modal; render(); if(m&&m.kind==='detail'){ S.modal=m; renderModal(); } toast(on?'已設定：員工提報完成時寄信通知您':'已設定：完成時不寄信'); }).catch(onErr);
+  },
   tileF(el){ const v=el.dataset.v; S.f.status=(S.f.status===v&&v!=='未完成')?'未完成':v; render(); },
   clearF(){ S.f={...F_DEFAULT}; render(); },
   af(el){ S.af.status=el.dataset.v; render(); },
@@ -1288,7 +1296,7 @@ const A = {
     if(!f.assignee) return toast('請選擇承辦人',true);
     if(!f.due) return toast('請選擇需完成日期',true);
     run('api_createTask',[{...f}],'已指派給 '+f.assignee+(f.notify?'，並寄出通知':'')).then(()=>{
-      S.form={type:f.type,project:f.project,content:'',assignee:'',due:'',link:'',notify:f.notify}; render();
+      S.form={type:f.type,project:f.project,content:'',assignee:'',due:'',link:'',notify:f.notify,notifyDone:false}; render();
     });
   }
 };
@@ -1409,7 +1417,7 @@ const Demo=(()=>{
       const mgr=role(actor)==='主管'; const assignee=mgr?p.assignee:actor;
       seq++; const id='T'+String(seq).padStart(4,'0');
       const src=(mgr&&assignee!==actor)?'主管交辦':'自行新增';
-      tasks.push(mk(id,{type:p.type,source:src,project:p.project.trim(),content:p.content.trim(),owner:mgr?actor:(p.owner||'正翰'),assignee,due:p.due,assignedAt:fdt(now()),startedAt:'',status:'未開始',latest:'',link:(p.link||'').trim(),updatedAt:fdt(now())}));
+      tasks.push(mk(id,{notifyDone:!!(mgr&&p.notifyDone),type:p.type,source:src,project:p.project.trim(),content:p.content.trim(),owner:mgr?actor:(p.owner||'正翰'),assignee,due:p.due,assignedAt:fdt(now()),startedAt:'',status:'未開始',latest:'',link:(p.link||'').trim(),updatedAt:fdt(now())}));
       addLog(id,actor,'未開始','',src==='主管交辦'?'指派給 '+assignee:'自行新增'); return boot(actor);
     },
     api_start(actor,id){ const t=find(id); canTouch(t,actor); if(!t.startedAt) t.startedAt=fdt(now()); if(t.status==='未開始') t.status='進行中'; addLog(id,actor,t.status,t.progress,'開始執行'); return boot(actor); },
@@ -1426,6 +1434,7 @@ const Demo=(()=>{
       t.waitingFor=st==='等待外部'?(d.waitingFor||t.waitingFor):'';
       t.status=st; t.updatedAt=fdt(now()); addLog(id,actor,st,t.progress,d.content); return boot(actor);
     },
+    api_setNotifyDone(a,id,on){ mustMgr(a); find(id).notifyDone=!!on; return boot(a); },
     api_reassign(actor,id,to){ if(role(actor)!=='主管') throw new Error('只有主管可以轉派'); const t=find(id); const old=t.assignee; t.assignee=to; addLog(id,actor,t.status,t.progress,'轉派：'+old+' → '+to); return boot(actor); },
     api_delete(actor,id){ if(role(actor)!=='主管') throw new Error('只有主管可以刪除'); find(id); tasks=tasks.filter(t=>t.id!==id); addLog(id,actor,'刪除','','刪除'); return boot(actor); },
     api_history(actor,id){ canTouch(find(id),actor); return log.filter(h=>h.id===id).slice().reverse(); }
