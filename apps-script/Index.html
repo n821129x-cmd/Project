@@ -206,6 +206,9 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.range-hint{margin-top:12px;font-size:13.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.range-hint b{color:var(--ink)}
+.range-hint .stale{background:var(--amber-soft);color:var(--amber-ink);border-radius:999px;padding:2px 10px;font-weight:600;font-size:12.5px}
 button.tile{font:inherit;text-align:left;cursor:pointer;transition:box-shadow .15s,transform .15s}
 button.tile:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(28,27,46,.08)}
 button.tile.on{box-shadow:0 0 0 2px currentColor inset}
@@ -907,20 +910,33 @@ function mdHtml(text){
 }
 const SPARK='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg>';
 function aiRangeHtml(){
-  const r=S.aiRange||(S.aiRange={from:addDays(S.today,-6),to:S.today,who:'',text:'',loading:false});
+  const r=S.aiRange||(S.aiRange={from:quickRange('本週')[0],to:S.today,who:'',text:'',loading:false});
+  const days=r.from&&r.to&&r.from<=r.to?dayDiff(r.from,r.to)+1:0;
+  const curKey=r.from+'|'+r.to+'|'+r.who;
   return `<section class="panel" style="margin-bottom:24px">
     <div class="panel-head"><h2>AI 辦理狀況分析</h2><span class="badge">最高管理者</span></div>
     <div class="range-row">
       <div class="field"><label>開始日期</label><input class="inp" type="date" data-bind="ar.from" value="${esc(r.from)}" max="${S.today}"></div>
       <div class="field"><label>結束日期</label><input class="inp" type="date" data-bind="ar.to" value="${esc(r.to)}" max="${S.today}"></div>
       <div class="field"><label>對象</label><select class="inp" data-bind="ar.who"><option value="">全部員工</option>${S.people.map(p=>`<option ${r.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
-      <div class="pills" style="margin-bottom:6px">${[['本週',6],['近 30 天',29]].map(x=>`<button class="pill" data-act="arQuick" data-v="${x[1]}">${x[0]}</button>`).join('')}</div>
+      <div class="pills" style="margin-bottom:6px">${QUICK.map(k=>{ const q=quickRange(k); return `<button class="pill ${q[0]===r.from&&q[1]===r.to?'on':''}" data-act="arQuick" data-v="${k}">${k}</button>`; }).join('')}</div>
       <button class="btn ai" data-act="aiRange" ${r.loading?'disabled':''} style="margin-bottom:2px">${r.loading?'<span class="spin"></span> 分析中…':SPARK+' AI 分析'}</button>
     </div>
+    <div class="range-hint">${days?`📅 分析期間：<b>${mdw(r.from)}</b> ～ <b>${mdw(r.to)}</b>，共 ${days} 天｜對象：<b>${r.who?esc(r.who):'全部員工'}</b>`:'<span style="color:#C23A72">請選擇正確的日期區間（開始日期不能晚於結束日期）</span>'}
+      ${r.text&&r.key!==curKey&&days?'<span class="stale">條件已變更，按「AI 分析」重新產生</span>':''}${!r.text&&days&&!r.loading?'<span class="muted">　選好後按「AI 分析」開始</span>':''}</div>
     ${r.text?`<div class="ai-box" style="margin-top:18px"><div class="ai-tag">${SPARK} AI 分析　${esc(r.shownRange||'')}</div>${mdHtml(r.text)}</div>
       <div style="margin-top:10px"><button class="btn sm" data-act="copyAi">複製分析內容</button></div>`:''}
   </section>`;
 }
+const QUICK=['本週','上週','本月','近 30 天'];
+function quickRange(k){
+  const t=S.today, dow=(new Date(t+'T00:00').getDay()+6)%7, mon=addDays(t,-dow);
+  if(k==='本週') return [mon,t];
+  if(k==='上週') return [addDays(mon,-7),addDays(mon,-1)];
+  if(k==='本月') return [t.slice(0,8)+'01',t];
+  return [addDays(t,-29),t];
+}
+function mdw(day){ const d=new Date(day+'T00:00'); return (d.getMonth()+1)+'/'+d.getDate()+'（'+'日一二三四五六'[d.getDay()]+'）'; }
 function addDays(day,n){ const d=new Date(day+'T00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function copyText(txt,msg){
   const ok=()=>toast(msg||'已複製');
@@ -943,6 +959,7 @@ function inPeriod(t){
   const p=S.sf.period;
   if(p==='全部') return true;
   if(!t.assignedAt) return false;
+  if(p==='本週'){ const d=t.assignedAt.slice(0,10); return d>=quickRange('本週')[0] && d<=S.today; }
   if(p==='本月') return t.assignedAt.slice(0,7)===S.today.slice(0,7);
   if(p==='近 30 天') return dayDiff(t.assignedAt,S.today)<=30;
   return true;
@@ -989,7 +1006,7 @@ function statsCore(){
     .map(k=>({k,a:agg(projT.filter(t=>(t.project||'未分類')===k))}))
     .sort((x,y)=>y.a.total-x.a.total||x.k.localeCompare(y.k));
   const personRows=S.people.map(p=>({k:p.name,a:agg(list.filter(t=>t.assignee===p.name))})).filter(r=>r.a.total);
-  const filters=`<div class="filters"><div class="fgroup"><span class="lbl">期間</span>${fp('period',['全部','本月','近 30 天'])}</div>
+  const filters=`<div class="filters"><div class="fgroup"><span class="lbl">期間</span>${fp('period',['全部','本週','本月','近 30 天'])}<span class="muted" style="font-size:12.5px">依指派日期</span></div>
     <div class="fgroup"><span class="lbl">來源</span>${fp('src',['全部','主管交辦','自行新增'])}</div></div>`;
   if(!list.length) return `<section class="panel"><div class="panel-head"><h2>統計圖表</h2></div>${filters}<div class="empty">這個期間沒有工作</div></section>`;
   return `<section class="panel">
@@ -1235,12 +1252,13 @@ const A = {
     api('api_aiPerson',S.token,n).then(txt=>{ S.aiPerson[n]={loading:false,text:txt}; render(); })
       .catch(err=>{ S.aiPerson[n].loading=false; render(); onErr(err); });
   },
-  arQuick(el){ const r=S.aiRange; r.to=S.today; r.from=addDays(S.today,-Number(el.dataset.v)); render(); },
+  arQuick(el){ const r=S.aiRange, q=quickRange(el.dataset.v); r.from=q[0]; r.to=q[1]; render(); toast('已套用'+el.dataset.v+'：'+mdw(q[0])+' ～ '+mdw(q[1])); },
   aiRange(){
     const r=S.aiRange;
     if(!r.from||!r.to||r.from>r.to) return toast('請選擇正確的日期區間',true);
     r.loading=true; render();
-    api('api_aiRange',S.token,r.from,r.to,r.who).then(txt=>{ r.loading=false; r.text=txt; r.shownRange=r.from+' ～ '+r.to+(r.who?'｜'+r.who:'｜全部員工'); render(); })
+    const key=r.from+'|'+r.to+'|'+r.who;
+    api('api_aiRange',S.token,r.from,r.to,r.who).then(txt=>{ r.loading=false; r.text=txt; r.key=key; r.shownRange=mdw(r.from)+' ～ '+mdw(r.to)+(r.who?'｜'+r.who:'｜全部員工'); render(); })
       .catch(err=>{ r.loading=false; render(); onErr(err); });
   },
   copyAi(){ copyText(S.aiRange.text,'已複製分析內容'); },
@@ -1285,7 +1303,7 @@ function onBind(e){
   if(b==='aq'){ S.af.q=val; const el=$('#assignList'); if(el) el.innerHTML=assignListHtml(); return; }
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
-  if(scope==='ar'){ S.aiRange[key]=val; return; }
+  if(scope==='ar'){ S.aiRange[key]=val; if(e.type==='change') render(); return; }
   if(scope==='st'){ S.sets[key]=val; return; }
   if(scope==='form') S.form[key]=val;
   if(scope==='m' && S.modal){
@@ -1295,7 +1313,7 @@ function onBind(e){
   }
 }
 document.addEventListener('input',onBind);
-document.addEventListener('change',e=>{ if(e.target.type==='checkbox'||e.target.tagName==='SELECT') onBind(e); });
+document.addEventListener('change',e=>{ if(e.target.type==='checkbox'||e.target.tagName==='SELECT'||(e.target.type==='date'&&/^ar\./.test(e.target.dataset.bind||''))) onBind(e); });
 
 /* 圖表滑過提示 */
 const tip=$('#tip');
