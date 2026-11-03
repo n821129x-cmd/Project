@@ -15,7 +15,9 @@
  *   員工：自行新增工作、開始、回報、提報完成（送主管確認），只看得到自己的工作
  */
 
-const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定' };
+const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報' };
+const REPORT_COLS = ['日期', '姓名', '寄出時間', 'LINE文字', 'AI摘要', '工作數'];
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const TZ = 'Asia/Taipei';
 const STATUSES = ['未開始', '進行中', '等待外部', '暫停', '待確認', '完成'];
 const STATUS_ALIAS = {
@@ -43,7 +45,9 @@ const CONFIG_DEFAULTS = [
   ['每日摘要時間', 8, '每天幾點寄摘要（0–23），修改後要重新執行「安裝自動排程」'],
   ['週末寄送摘要', '否', '是／否'],
   ['未開始提醒天數', 2, '指派超過幾天仍未開始，列入主管摘要提醒'],
-  ['等待外部提醒天數', 7, '等待外部超過幾天沒更新，列入主管摘要提醒']
+  ['等待外部提醒天數', 7, '等待外部超過幾天沒更新，列入主管摘要提醒'],
+  ['Gemini模型', DEFAULT_MODEL, 'AI 彙整使用的模型；API 金鑰請放在 Apps Script「專案設定 → 指令碼屬性」的 GEMINI_API_KEY'],
+  ['日報收件人', '', '留空＝寄給該員工的負責主管（或所有主管）；也可填 Email，多個用逗號分隔']
 ];
 
 /* ───────────── 選單與初始化 ───────────── */
@@ -80,6 +84,7 @@ function setup() {
   ensureTaskCols_();
   ensureSheet_(ss, SHEET.LOG, LOG_COLS);
   ensureSheet_(ss, SHEET.CONFIG, ['項目', '值', '說明'], CONFIG_DEFAULTS);
+  ensureSheet_(ss, SHEET.REPORTS, REPORT_COLS);
   ['工作表1', 'Sheet1'].forEach(n => {
     const s = ss.getSheetByName(n);
     if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
@@ -215,6 +220,9 @@ function bootstrap_(actor) {
     people: people,
     projects: projects,
     tasks: tasks.map(toClient_),
+    isSuper: !!(me && me.super),
+    aiEnabled: !!geminiKey_(),
+    reportedToday: me ? reportedOn_(me.name, fmt_(new Date(), 'yyyy-MM-dd')) : false,
     config: { salutation: String(cfg['稱謂'] || '報告'), title: String(cfg['系統名稱'] || '每日工作追蹤') },
     today: fmt_(new Date(), 'yyyy-MM-dd')
   };
@@ -336,6 +344,215 @@ function api_history(token, id) {
     .reverse();
 }
 
+/* ───────────── 日報（員工下班寄出） ───────────── */
+
+/** AI 彙整今日進度（員工寄日報前預覽用） */
+function api_aiDaily(token) {
+  const actor = auth_(token);
+  return aiDailyText_(actor);
+}
+
+/** 寄出日報：LINE 文字 ＋ AI 摘要 ＋ 工作表格 */
+function api_sendDailyReport(token, lineText, aiText) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  const cfg = getConfig_();
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const tasks = orderTasks_(readTasks_().filter(t => t.assignee === actor &&
+    (t.status !== '完成' || (t.doneAt instanceof Date && fmt_(t.doneAt, 'yyyy-MM-dd') === today))));
+  const text = String(lineText || '').trim() || buildReportText_(tasks, String(cfg['稱謂'] || '報告'), today, true);
+  let ai = String(aiText || '').trim();
+  if (!ai && geminiKey_()) { try { ai = aiDailyText_(actor); } catch (e) { ai = ''; } }
+
+  // 收件人
+  let to = String(cfg['日報收件人'] || '').split(/[,，;；\s]+/).filter(x => /@/.test(x));
+  if (!to.length) {
+    const owners = tasks.map(t => t.owner).filter((v, i, a) => v && a.indexOf(v) === i)
+      .map(n => findPerson_(people, n)).filter(p => p && p.role === '主管' && p.email && p.name !== actor);
+    to = (owners.length ? owners : people.filter(p => p.role === '主管' && p.email && p.name !== actor)).map(p => p.email);
+  }
+  if (!to.length) throw new Error('找不到收件主管的 Email，請主管到「人員管理」填寫 Email');
+  to = to.filter((v, i, a) => a.indexOf(v) === i);
+
+  const md = fmt_(new Date(), 'M/d');
+  const html = mailShell_(cfg, md + ' ' + actor + ' 工作日報',
+    sectionTitle_('1', 'LINE 回報文字') + preHtml_(text) +
+    (ai ? sectionTitle_('2', 'AI 進度摘要') + '<div style="background:#F6EFFD;border:1px solid #E6D2F8;border-radius:6px;padding:12px 16px;font-size:14.5px;line-height:1.8">' + mdToHtml_(ai) + '</div>' : '') +
+    sectionTitle_(ai ? '3' : '2', '工作明細（' + tasks.length + ' 件）') + taskTableHtml_(tasks, today));
+  const plain = '【LINE 回報文字】\n' + text + (ai ? '\n\n【AI 進度摘要】\n' + ai : '') + '\n\n【工作明細】\n' +
+    tasks.map(t => '#' + t.id + ' ' + lineCore_(t) + '｜' + t.status + (isNum_(t.progress) ? ' ' + t.progress + '%' : '') + '｜期限 ' + dateStr_(t.due)).join('\n');
+  const opt = { htmlBody: html, name: actor + '（' + String(cfg['系統名稱'] || '每日工作追蹤') + '）' };
+  if (me.email) { opt.replyTo = me.email; opt.cc = me.email; }
+  GmailApp.sendEmail(to.join(','), '【日報】' + md + ' ' + actor + ' 工作回報', plain, opt);
+
+  sheet_(SHEET.REPORTS).appendRow([today, actor, new Date(), text, ai, tasks.length]);
+  return { sentTo: to, ai: ai, data: bootstrap_(actor) };
+}
+
+function reportedOn_(name, day) {
+  const sh = ss_().getSheetByName(SHEET.REPORTS);
+  if (!sh || sh.getLastRow() < 2) return false;
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().some(r => dateStr_(r[0]) === day && String(r[1]).trim() === name);
+}
+
+function prevWorkday_(d) {
+  const x = new Date(d.getTime());
+  do { x.setTime(x.getTime() - 864e5); } while ([6, 7].indexOf(Number(fmt_(x, 'u'))) >= 0);
+  return fmt_(x, 'yyyy-MM-dd');
+}
+
+function sectionTitle_(n, t) {
+  return '<div style="display:flex;align-items:center;gap:8px;margin:22px 0 10px;font-weight:700;font-size:15.5px;color:#1C1B2E">' +
+    '<span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:#2D5BE3;color:#fff;font-size:12.5px">' + n + '</span>' + esc_(t) + '</div>';
+}
+
+function taskTableHtml_(tasks, today) {
+  const color = { '未開始': ['#F2F2F5', '#6C6B80'], '進行中': ['#ECF1FE', '#2D5BE3'], '等待外部': ['#F6EFFD', '#8A55D6'],
+    '暫停': ['#FDF1E5', '#B85E10'], '待確認': ['#FFF5D6', '#8A5E00'], '完成': ['#E3F5F1', '#0E7466'] };
+  const th = 'padding:8px 10px;background:#ECF1FE;color:#2D5BE3;font-weight:600;text-align:left;font-size:13px;white-space:nowrap';
+  const td = 'padding:8px 10px;border-bottom:1px solid #EEE;font-size:13.5px;vertical-align:top';
+  if (!tasks.length) return '<p style="color:#6C6B80">目前沒有工作</p>';
+  return '<table style="border-collapse:collapse;width:100%">' +
+    '<tr><th style="' + th + '">編號</th><th style="' + th + '">專案</th><th style="' + th + '">工作內容</th><th style="' + th + '">狀態</th><th style="' + th + '">進度</th><th style="' + th + '">最新回報</th><th style="' + th + '">期限</th></tr>' +
+    tasks.map(t => {
+      const c = color[t.status] || color['未開始'];
+      const od = isOverdue_(t, today);
+      return '<tr><td style="' + td + ';color:#9A99AB">#' + t.id + '</td><td style="' + td + '">' + esc_(t.project || '臨時代辦') + '</td>' +
+        '<td style="' + td + ';font-weight:600">' + esc_(t.content) + '</td>' +
+        '<td style="' + td + '"><span style="background:' + c[0] + ';color:' + c[1] + ';border-radius:999px;padding:2px 9px;font-size:12.5px;font-weight:600;white-space:nowrap">' + t.status + '</span>' +
+        (od ? ' <span style="background:#FDEDF4;color:#C23A72;border-radius:999px;padding:2px 9px;font-size:12.5px;font-weight:600">逾期</span>' : '') + '</td>' +
+        '<td style="' + td + '">' + (isNum_(t.progress) ? t.progress + '%' : '—') + '</td>' +
+        '<td style="' + td + ';color:#4A4960">' + esc_(t.latest || '') + (t.status === '等待外部' && t.waitingFor ? '（等待：' + esc_(t.waitingFor) + '）' : '') + '</td>' +
+        '<td style="' + td + ';white-space:nowrap' + (od ? ';color:#C23A72;font-weight:600' : '') + '">' + dateStr_(t.due).slice(5).replace('-', '/') + '</td></tr>';
+    }).join('') + '</table>';
+}
+
+/** 簡易 Markdown → HTML（標題、條列、粗體） */
+function mdToHtml_(text) {
+  const out = [];
+  let inList = false;
+  String(text).split('\n').forEach(raw => {
+    const line = raw.trim();
+    const li = line.match(/^[-*•]\s+(.*)$/) || line.match(/^\d+[.)、]\s+(.*)$/);
+    if (li) { if (!inList) { out.push('<ul style="margin:4px 0 8px;padding-left:20px">'); inList = true; } out.push('<li>' + inline_(li[1]) + '</li>'); return; }
+    if (inList) { out.push('</ul>'); inList = false; }
+    if (!line) return;
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    if (h) out.push('<div style="font-weight:700;color:#3B1E63;margin:10px 0 4px">' + inline_(h[1]) + '</div>');
+    else out.push('<div style="margin:3px 0">' + inline_(line) + '</div>');
+  });
+  if (inList) out.push('</ul>');
+  return out.join('');
+  function inline_(s) { return esc_(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+}
+
+/* ───────────── AI（Gemini） ───────────── */
+
+function geminiKey_() {
+  const k = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (k) return k.trim();
+  const c = String(getConfig_()['Gemini API金鑰'] || '').trim();
+  return c;
+}
+
+function gemini_(prompt) {
+  const key = geminiKey_();
+  if (!key) throw new Error('尚未設定 Gemini API 金鑰：請到 Apps Script「專案設定 → 指令碼屬性」新增 GEMINI_API_KEY');
+  const model = String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+  const body = {
+    systemInstruction: { parts: [{ text: '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }]
+  };
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body)
+  });
+  const code = res.getResponseCode();
+  let json = {};
+  try { json = JSON.parse(res.getContentText()); } catch (e) { /* 非 JSON */ }
+  if (code !== 200) {
+    const msg = (json.error && json.error.message) || res.getContentText().slice(0, 200);
+    if (code === 429) throw new Error('AI 使用量已達上限，請稍後再試');
+    if (code === 404) throw new Error('找不到 AI 模型「' + model + '」，請到「設定」分頁修改 Gemini模型');
+    throw new Error('AI 回應錯誤（' + code + '）：' + msg);
+  }
+  const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];
+  const text = parts.filter(p => !p.thought).map(p => p.text || '').join('').trim();
+  if (!text) throw new Error('AI 沒有回傳內容，請再試一次');
+  return text;
+}
+
+function taskBrief_(t, today) {
+  return '#' + t.id + '｜' + (t.type === '臨時代辦' ? '臨時交辦' : '專案') + '｜' + lineCore_(t) + '｜狀態：' + t.status +
+    (isNum_(t.progress) ? '｜進度：' + t.progress + '%' : '') + (t.latest ? '｜最新回報：' + t.latest : '') +
+    (t.waitingFor ? '｜等待：' + t.waitingFor : '') + '｜期限：' + dateStr_(t.due) + (isOverdue_(t, today) ? '（已逾期）' : '');
+}
+
+function logsBetween_(from, to, name) {
+  const vals = sheet_(SHEET.LOG).getDataRange().getValues().slice(1);
+  return vals.filter(r => {
+    const d = dateStr_(r[0]);
+    return d >= from && d <= to && (!name || String(r[2]).trim() === name);
+  }).map(r => ({ day: dateStr_(r[0]), time: fmt_(r[0], 'MM/dd HH:mm'), id: String(r[1]), actor: String(r[2]), status: String(r[3]), progress: r[4], content: String(r[5]), source: String(r[6]) }));
+}
+
+function aiDailyText_(name) {
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const tasks = readTasks_().filter(t => t.assignee === name &&
+    (t.status !== '完成' || (t.doneAt instanceof Date && fmt_(t.doneAt, 'yyyy-MM-dd') === today)));
+  const logs = logsBetween_(today, today, name).filter(l => l.status !== '刪除');
+  const prompt = '請根據以下資料，替「' + name + '」寫今天的工作進度摘要，給主管快速閱讀。\n' +
+    '要求：3～6 行條列；先寫今天完成或有進展的事，再寫卡關／等待外部的事與需要主管協助之處，最後一行寫明日重點。不要逐項照抄。\n\n' +
+    '【今天的回報紀錄】\n' + (logs.length ? logs.map(l => l.time + ' #' + l.id + ' ' + l.status + (l.progress !== '' ? ' ' + l.progress + '%' : '') + ' ' + l.content).join('\n') : '（今天沒有在系統更新）') +
+    '\n\n【手上的工作】\n' + (tasks.length ? tasks.map(t => taskBrief_(t, today)).join('\n') : '（無）');
+  return gemini_(prompt);
+}
+
+/** 團隊總覽：單一員工的 AI 簡要說明 */
+function api_aiPerson(token, name) {
+  mustManager_(token);
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const from = fmt_(new Date(Date.now() - 6 * 864e5), 'yyyy-MM-dd');
+  const tasks = readTasks_().filter(t => t.assignee === name && (t.status !== '完成' || (t.doneAt instanceof Date && dateStr_(t.doneAt) >= from)));
+  const logs = logsBetween_(from, today, name).filter(l => l.status !== '刪除');
+  const prompt = '請用 2～4 句話，說明「' + name + '」目前的工作狀況，給主管參考：手上件數與重點工作、近 7 天的進展、逾期或卡關、是否需要協助。不要用條列，不要寫標題。\n\n' +
+    '【工作】\n' + (tasks.length ? tasks.map(t => taskBrief_(t, today)).join('\n') : '（無）') +
+    '\n\n【近 7 天回報】\n' + (logs.length ? logs.map(l => l.time + ' #' + l.id + ' ' + l.status + ' ' + l.content).join('\n') : '（沒有回報紀錄）');
+  return gemini_(prompt);
+}
+
+/** 最高管理者：指定區間的員工辦理狀況分析 */
+function api_aiRange(token, from, to, who) {
+  const actor = auth_(token);
+  const me = findPerson_(getPeople_(), actor);
+  if (!me || !me.super) throw new Error('只有最高管理者可以使用 AI 區間分析');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error('請選擇正確的日期區間');
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const people = getPeople_().filter(p => !who || p.name === who);
+  const all = readTasks_();
+  const inRange = d => d && d >= from && d <= to;
+  const blocks = people.map(p => {
+    const mine = all.filter(t => t.assignee === p.name);
+    const assigned = mine.filter(t => inRange(dateStr_(t.assignedAt)));
+    const done = mine.filter(t => t.status === '完成' && inRange(dateStr_(t.doneAt)));
+    const open = mine.filter(t => t.status !== '完成');
+    const logs = logsBetween_(from, to, p.name).filter(l => l.status !== '刪除');
+    if (!assigned.length && !done.length && !open.length && !logs.length) return '';
+    return '### ' + p.name + '（' + p.role + '）\n' +
+      '區間內新指派 ' + assigned.length + ' 件、完成 ' + done.length + ' 件、目前未完成 ' + open.length + ' 件（其中逾期 ' + open.filter(t => isOverdue_(t, today)).length + ' 件）、回報 ' + logs.length + ' 次\n' +
+      '完成：\n' + (done.map(t => '- ' + lineCore_(t)).join('\n') || '- 無') + '\n' +
+      '未完成：\n' + (open.map(t => '- ' + taskBrief_(t, today)).join('\n') || '- 無') + '\n' +
+      '回報紀錄（最多 40 筆）：\n' + (logs.slice(-40).map(l => '- ' + l.time + ' #' + l.id + ' ' + l.status + ' ' + l.content).join('\n') || '- 無');
+  }).filter(Boolean);
+  if (!blocks.length) return '這段期間沒有任何工作或回報紀錄。';
+  const prompt = '請分析 ' + from + ' 至 ' + to + ' 期間' + (who ? '「' + who + '」' : '團隊各員工') + '的工作辦理狀況，給公司最高管理者閱讀。\n' +
+    '請依序輸出：\n## 整體概況（2～3 句，含完成件數與重點）\n## 各員工辦理狀況（每人 2～3 點：完成什麼、進行中重點、效率與回報情形）\n## 風險與卡關（逾期、等待外部過久、久未回報）\n## 建議（3 點以內，具體可執行）\n\n' +
+    blocks.join('\n\n');
+  return gemini_(prompt);
+}
+
 /* ───────────── 人員管理（主管） ───────────── */
 
 function mustManager_(token) {
@@ -428,7 +645,7 @@ function upsertPerson_(p, original, actor, fromImport) {
   ensurePeopleCols_();
   const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const rec = {
-    '姓名': name, '角色': role, 'Email': email,
+    '姓名': name, '角色': (old && old.roleRaw === '管理者' && role === '主管') ? '管理者' : role, 'Email': email,
     'LINE名稱': p.line == null && old ? old.line : String(p.line || '').trim(),
     '帳號': fromImport && !account && old ? old.account : account,
     '密碼': password || (old ? old.password : '')
@@ -693,6 +910,9 @@ function dailyDigest_(force) {
     if (t.status === '等待外部' && t.updatedAt instanceof Date && (now - t.updatedAt) / 864e5 >= waitDays)
       alerts.push('🕓 等待外部 ' + Math.floor((now - t.updatedAt) / 864e5) + ' 天未更新｜' + t.assignee + '｜' + lineCore_(t));
   });
+  const lastDay = prevWorkday_(now);
+  const missing = people.filter(p => p.role !== '主管' && tasks.some(t => t.assignee === p.name && t.status !== '完成') && !reportedOn_(p.name, lastDay));
+  if (missing.length) alerts.unshift('📭 ' + lastDay.slice(5).replace('-', '/') + ' 未寄日報：' + missing.map(p => p.name).join('、'));
   const sections = [];
   people.forEach(p => {
     const list = tasks.filter(t => t.assignee === p.name && (t.status !== '完成' || recentDone(t)));
@@ -903,7 +1123,9 @@ function getPeople_() {
     .filter(r => get(r, '姓名'))
     .map(r => ({
       name: get(r, '姓名'),
-      role: get(r, '角色') === '主管' ? '主管' : '員工',
+      role: /^(主管|管理者)$/.test(get(r, '角色')) ? '主管' : '員工',
+      roleRaw: get(r, '角色'),
+      super: get(r, '角色') === '管理者' || get(r, '帳號').toLowerCase() === ADMIN_ROW[4],
       email: get(r, 'Email').toLowerCase(),
       line: get(r, 'LINE名稱'),
       account: get(r, '帳號'),

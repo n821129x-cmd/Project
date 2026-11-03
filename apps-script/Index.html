@@ -206,6 +206,22 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.ai-box{background:linear-gradient(135deg,#F6EFFD,#ECF1FE);border:1px solid var(--purple-line);border-radius:6px;padding:12px 16px;font-size:14.5px;line-height:1.75;color:var(--ink)}
+.ai-box h4{margin:10px 0 4px;font-size:15px;color:var(--purple-ink)} .ai-box h4:first-child{margin-top:0}
+.ai-box ul{margin:4px 0 8px;padding-left:20px} .ai-box p{margin:3px 0}
+.ai-tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--purple);margin-bottom:6px}
+.btn.ai{background:linear-gradient(135deg,#8A55D6,#E0508A);border-color:transparent;color:#fff}
+.btn.ai:hover{filter:brightness(1.05)}
+.sec-title .btn{margin-left:auto}
+.person-ai{margin:-4px 0 14px}
+.sent-chip{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--teal-soft);color:#0E7466;align-self:center}
+.rep-sec{font-weight:700;font-size:14.5px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.rep-sec .n{width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;display:inline-grid;place-items:center}
+.range-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:16px}
+.range-row .field{min-width:150px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+.spin.dark{border-color:var(--purple-line);border-top-color:var(--purple)}
+@keyframes sp{to{transform:rotate(360deg)}}
 .tbl-wrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:6px}
 table.ppl{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
 table.ppl th{background:var(--gray-soft);color:var(--muted);font-weight:600;text-align:left;padding:9px 12px;white-space:nowrap}
@@ -290,7 +306,7 @@ const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['acti
 const IS_DEMO = !(window.google && google.script && google.script.run);
 const S = {
   people:[], projects:[], tasks:[], config:{salutation:'報告',title:'每日工作追蹤'}, today:'',
-  me:null, token:null, admin:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
+  me:null, token:null, admin:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部'},
   form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true}
@@ -363,7 +379,7 @@ function onErr(err){
   toast(msg,true);
 }
 function logoutLocal(){ S.token=null; S.me=null; S.tasks=[]; S.modal=null; S.tab='mine'; store('dtt.token',null); }
-function applyData(res){ S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
+function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
 let toastTimer;
 function toast(msg,err){
   const el=$('#toast'); el.innerHTML=`<div class="toast ${err?'err':''}">${esc(msg)}</div>`;
@@ -510,7 +526,7 @@ function tilesHtml(list){
 function mainHtml(){
   const list=visible(); const mine=S.tab==='mine';
   const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
-    <div class="head-acts">${mine?`<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">產生今日回報</button>`:''}</div></div>`;
+    <div class="head-acts">${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:''}</div></div>`;
   const tiles=tilesHtml(baseList());
   if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
   const groups=[];
@@ -520,7 +536,8 @@ function mainHtml(){
     S.people.forEach(p=>{ const items=orderTasks(list.filter(t=>t.assignee===p.name)); if(items.length) groups.push({k:p.name,items,person:true}); });
   }
   return `<section class="panel">${head}${tiles}${groups.map(g=>`
-    <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span></h3>
+    <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span>${g.person&&S.aiEnabled?`<button class="btn sm ai" data-act="aiPerson" data-v="${esc(g.k)}" ${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'disabled':''}>${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'<span class="spin"></span> 彙整中':SPARK+' AI 摘要'}</button>`:''}</h3>
+    ${g.person&&S.aiPerson[g.k]&&S.aiPerson[g.k].text?`<div class="ai-box person-ai"><div class="ai-tag">${SPARK} AI 摘要</div>${mdHtml(S.aiPerson[g.k].text)}</div>`:''}
     <div class="grid">${g.items.map(t=>cardHtml(t,S.tab)).join('')}</div>`).join('')}</section>`;
 }
 
@@ -767,6 +784,46 @@ function importModalBody(m){
     ${m.what==='tasks'?`<label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（一般 Gmail 每天約 100 封上限）</label>`:''}`;
 }
 
+/* ═════════ AI 顯示 ═════════ */
+function mdHtml(text){
+  const out=[]; let inList=false;
+  const inl=x=>esc(x).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  String(text||'').split('\n').forEach(raw=>{
+    const line=raw.trim();
+    const li=line.match(/^[-*•]\s+(.*)$/)||line.match(/^\d+[.)、]\s+(.*)$/);
+    if(li){ if(!inList){ out.push('<ul>'); inList=true; } out.push('<li>'+inl(li[1])+'</li>'); return; }
+    if(inList){ out.push('</ul>'); inList=false; }
+    if(!line) return;
+    const h=line.match(/^#{1,4}\s+(.*)$/);
+    out.push(h?'<h4>'+inl(h[1])+'</h4>':'<p>'+inl(line)+'</p>');
+  });
+  if(inList) out.push('</ul>');
+  return out.join('');
+}
+const SPARK='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg>';
+function aiRangeHtml(){
+  const r=S.aiRange||(S.aiRange={from:addDays(S.today,-6),to:S.today,who:'',text:'',loading:false});
+  return `<section class="panel" style="margin-bottom:24px">
+    <div class="panel-head"><h2>AI 辦理狀況分析</h2><span class="badge">最高管理者</span></div>
+    <div class="range-row">
+      <div class="field"><label>開始日期</label><input class="inp" type="date" data-bind="ar.from" value="${esc(r.from)}" max="${S.today}"></div>
+      <div class="field"><label>結束日期</label><input class="inp" type="date" data-bind="ar.to" value="${esc(r.to)}" max="${S.today}"></div>
+      <div class="field"><label>對象</label><select class="inp" data-bind="ar.who"><option value="">全部員工</option>${S.people.map(p=>`<option ${r.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="pills" style="margin-bottom:6px">${[['本週',6],['近 30 天',29]].map(x=>`<button class="pill" data-act="arQuick" data-v="${x[1]}">${x[0]}</button>`).join('')}</div>
+      <button class="btn ai" data-act="aiRange" ${r.loading?'disabled':''} style="margin-bottom:2px">${r.loading?'<span class="spin"></span> 分析中…':SPARK+' AI 分析'}</button>
+    </div>
+    ${r.text?`<div class="ai-box" style="margin-top:18px"><div class="ai-tag">${SPARK} AI 分析　${esc(r.shownRange||'')}</div>${mdHtml(r.text)}</div>
+      <div style="margin-top:10px"><button class="btn sm" data-act="copyAi">複製分析內容</button></div>`:''}
+  </section>`;
+}
+function addDays(day,n){ const d=new Date(day+'T00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function copyText(txt,msg){
+  const ok=()=>toast(msg||'已複製');
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(()=>fallbackCopy(txt,ok));
+  else fallbackCopy(txt,ok);
+}
+function fallbackCopy(txt,ok){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} ta.remove(); ok(); }
+
 function projDatalist(){ return `<datalist id="projList">${S.projects.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>`; }
 
 /* ═════════ 統計圖表（主管） ═════════ */
@@ -815,7 +872,8 @@ function dataTable(rows,first){
     <tbody>${rows.map(r=>`<tr><td>${esc(r.k)}</td><td>${r.a.total}</td><td>${r.a.done}</td><td>${r.a.review}</td><td>${r.a.active}</td><td>${r.a.todo}</td><td>${r.a.od}</td><td>${r.a.rate}%</td></tr>`).join('')}</tbody></table></details>`;
 }
 
-function statsPage(){
+function statsPage(){ return (S.isSuper?aiRangeHtml():'')+statsCore(); }
+function statsCore(){
   let list=S.tasks.filter(inPeriod);
   if(S.sf.src!=='全部') list=list.filter(t=>t.source===S.sf.src);
   const fp=(k,opts)=>opts.map(o=>`<button class="pill ${S.sf[k]===o?'on':''}" data-act="sf" data-k="${k}" data-v="${o}">${o}</button>`).join('');
@@ -934,8 +992,15 @@ function renderModal(){
       cancel+`<button class="btn danger" data-act="submitDelete">確定刪除</button>`);
   }
   else if(m.kind==='text'){
-    html=shell('今日回報','可直接複製貼到 LINE',`<textarea class="inp report-text" id="repText">${esc(m.text)}</textarea>`,
-      `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="copy">複製文字</button>`,true);
+    html=shell('今日回報',S.reportedToday?'今天已寄過日報，再寄一次會覆蓋成最新版本給主管':'可複製貼到 LINE，或直接寄日報給主管',
+      `<div class="rep-sec"><span class="n">1</span>LINE 回報文字<button class="btn sm" data-act="copy" style="margin-left:auto">複製</button></div>
+       <textarea class="inp report-text" id="repText" data-bind="m.text" style="min-height:220px">${esc(m.text)}</textarea>
+       <div class="rep-sec"><span class="n">2</span>AI 進度摘要<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">可修改</span>
+         ${S.aiEnabled?`<button class="btn sm ai" data-act="aiDaily" style="margin-left:auto" ${m.aiLoading?'disabled':''}>${m.aiLoading?'<span class="spin"></span> 彙整中':SPARK+' AI 彙整'}</button>`:''}</div>
+       ${S.aiEnabled?`<textarea class="inp" data-bind="m.ai" style="min-height:110px" placeholder="按「AI 彙整」自動產生；留空的話寄出時會自動產生">${esc(m.ai)}</textarea>`
+         :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含 LINE 文字與工作表格。</div>'}
+       <div class="rep-sec"><span class="n">3</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`,
+      `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="sendReport" ${m.sending?'disabled':''}>${m.sending?'<span class="spin"></span> 寄送中…':'寄出日報給主管'}</button>`,true);
   }
   else if(m.kind==='detail' && t){
     const kv=[['編號','#'+t.id],['類型',t.type],['來源',t.source],['專案',t.project||'—'],['承辦人',t.assignee],['負責主管',t.owner||'—'],['狀態',t.status+(t.waitingFor&&t.status==='等待外部'?'（'+t.waitingFor+'）':'')],
@@ -1041,14 +1106,34 @@ const A = {
   genReport(){
     const list=S.tasks.filter(t=>t.assignee===S.me && (t.status!=='完成' || (t.doneAt && t.doneAt.slice(0,10)===S.today)));
     if(!list.length) return toast('目前沒有工作',true);
-    S.modal={kind:'text',color:'#2D5BE3',text:buildReportText(list)}; renderModal();
+    S.modal={kind:'text',color:'#2D5BE3',text:buildReportText(list),ai:'',count:list.length}; renderModal();
   },
-  copy(){
-    const ta=$('#repText'); const txt=ta.value;
-    const ok=()=>toast('已複製，可以貼到 LINE');
-    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(()=>{ ta.select(); document.execCommand('copy'); ok(); });
-    else { ta.select(); document.execCommand('copy'); ok(); }
+  copy(){ copyText($('#repText').value,'已複製，可以貼到 LINE'); },
+  aiDaily(){
+    const m=S.modal; m.aiLoading=true; renderModal();
+    api('api_aiDaily',S.token).then(txt=>{ if(S.modal===m){ m.ai=txt; m.aiLoading=false; renderModal(); } })
+      .catch(err=>{ m.aiLoading=false; if(S.modal===m) renderModal(); onErr(err); });
   },
+  sendReport(){
+    const m=S.modal; m.sending=true; renderModal();
+    api('api_sendDailyReport',S.token,m.text,m.ai).then(res=>{
+      applyData(res.data); S.modal=null; render(); toast('日報已寄給 '+res.sentTo.join('、'));
+    }).catch(err=>{ m.sending=false; if(S.modal===m) renderModal(); onErr(err); });
+  },
+  aiPerson(el){
+    const n=el.dataset.v; S.aiPerson[n]={loading:true,text:(S.aiPerson[n]||{}).text||''}; render();
+    api('api_aiPerson',S.token,n).then(txt=>{ S.aiPerson[n]={loading:false,text:txt}; render(); })
+      .catch(err=>{ S.aiPerson[n].loading=false; render(); onErr(err); });
+  },
+  arQuick(el){ const r=S.aiRange; r.to=S.today; r.from=addDays(S.today,-Number(el.dataset.v)); render(); },
+  aiRange(){
+    const r=S.aiRange;
+    if(!r.from||!r.to||r.from>r.to) return toast('請選擇正確的日期區間',true);
+    r.loading=true; render();
+    api('api_aiRange',S.token,r.from,r.to,r.who).then(txt=>{ r.loading=false; r.text=txt; r.shownRange=r.from+' ～ '+r.to+(r.who?'｜'+r.who:'｜全部員工'); render(); })
+      .catch(err=>{ r.loading=false; render(); onErr(err); });
+  },
+  copyAi(){ copyText(S.aiRange.text,'已複製分析內容'); },
   formType(el){ S.form.type=el.dataset.v; render(); },
   submitAssign(){
     const f=S.form;
@@ -1071,6 +1156,7 @@ function onBind(e){
   if(b==='q'){ S.f.q=val; $('#main').innerHTML=mainHtml(); return; }
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
+  if(scope==='ar'){ S.aiRange[key]=val; return; }
   if(scope==='form') S.form[key]=val;
   if(scope==='m' && S.modal){
     S.modal[key]=val;
@@ -1144,7 +1230,8 @@ const Demo=(()=>{
     if(old){ Object.assign(old,rec); if(orig!==p.name) tasks.forEach(t=>{ if(t.assignee===orig) t.assignee=p.name; if(t.owner===orig) t.owner=p.name; }); }
     else ppl.push(rec);
   };
-  const boot=actor=>({me:role(actor)?actor:'',people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
+  const reported={};
+  const boot=actor=>({me:role(actor)?actor:'',isSuper:actor==='正翰',aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
     config:{salutation:'報告正翰',title:'每日工作追蹤'},today:fd(now())});
   const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
@@ -1154,6 +1241,10 @@ const Demo=(()=>{
     api_login(acc,pw){ const p=ppl.find(x=>x.account&&x.account.toLowerCase()===String(acc).toLowerCase()); if(!p||p.password!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+p.name,data:boot(p.name)}; },
     api_logout(){ return true; },
     api_people(a){ mustMgr(a); return adm(); },
+    api_aiDaily(a){ return '- 完成福國社宅初驗複驗總結會議紀錄確認，已提報主管\n- 建築模組案期末報告持續修正，第三季執委會會議紀錄進度 75%\n- **北市圖資案**仍在等待叡揚報價，已逾期 2 天，可能需要主管協助催辦\n- 明日重點：完成會議紀錄併入報告書、再次追蹤叡揚'; },
+    api_sendDailyReport(a,text,ai){ reported[a]=true; return {sentTo:['manager@example.com'],ai:ai,data:boot(a)}; },
+    api_aiPerson(a,n){ mustMgr(a); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成'); return n+' 目前手上有 '+open.length+' 件未完成工作，重點在建築模組案期末報告與北市圖資案。近 7 天回報穩定，'+(open.some(isOverdue)?'但有逾期項目需要注意。':'沒有逾期項目。')+'（預覽模式的示範文字）'; },
+    api_aiRange(a,from,to,who){ return '## 整體概況\n'+from+' 至 '+to+' 期間共完成 7 件工作，北市圖資案與建築模組案為主要進度來源。\n## 各員工辦理狀況\n- **示範員工**：完成台北國際PMIS契約寄送；建築模組案期末報告修正中\n- **晏晨**：完成客製化表單對應；造價要項案期初報告 85%\n- **柏慶**：完成新北圖資主契約審核，回報頻率高\n## 風險與卡關\n- 北市圖資案等待叡揚報價已逾期\n- 華江案暫停，需確認發包時程\n## 建議\n- 由主管直接聯繫叡揚確認報價日期\n- 晏晨的臨時交辦已逾期，建議重新排定期限\n\n（預覽模式的示範文字）'; },
     api_savePerson(a,p,orig){ mustMgr(a); upsert(p,orig); return {people:adm(),data:boot(a)}; },
     api_deletePerson(a,n){ mustMgr(a); if(n===a) throw new Error('不能刪除自己的帳號'); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成').length; if(open) throw new Error(n+' 還有 '+open+' 件未完成的工作，請先轉派'); ppl=ppl.filter(p=>p.name!==n); return {people:adm(),data:boot(a)}; },
     api_importPeople(a,rows){ mustMgr(a); const r={added:0,updated:0,errors:[]}; rows.forEach(x=>{ try{ const ex=ppl.some(p=>p.name===x.name); upsert(x,ex?x.name:''); ex?r.updated++:r.added++; }catch(e){ r.errors.push('第 '+x._row+' 列：'+e.message); } }); r.people=adm(); r.data=boot(a); return r; },
