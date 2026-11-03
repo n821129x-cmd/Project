@@ -540,15 +540,15 @@ function reportLine_(t, today) {
 function orderTasks_(tasks) {
   const first = {};
   tasks.forEach(t => {
-    const k = t.project ? t.project : '￿';
+    const k = t.project ? t.project : '\uffff';
     const tm = toTime_(t.assignedAt);
     if (first[k] === undefined || tm < first[k]) first[k] = tm;
   });
   return tasks.slice().sort((a, b) => {
-    const ka = a.project ? a.project : '￿', kb = b.project ? b.project : '￿';
+    const ka = a.project ? a.project : '\uffff', kb = b.project ? b.project : '\uffff';
     if (ka !== kb) {
-      if (ka === '￿') return 1;
-      if (kb === '￿') return -1;
+      if (ka === '\uffff') return 1;
+      if (kb === '\uffff') return -1;
       return first[ka] - first[kb] || (ka < kb ? -1 : 1);
     }
     return toTime_(a.assignedAt) - toTime_(b.assignedAt);

@@ -243,6 +243,11 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 <div id="tip"></div>
 
 <script>
+/* 發生錯誤時顯示訊息，不要一直停在「載入中」 */
+window.addEventListener('error',function(e){
+  var a=document.getElementById('app');
+  if(a) a.innerHTML='<div class="loading">網頁發生錯誤：'+String(e.message||e).replace(/</g,'&lt;')+'<br>請截圖給系統管理者</div>';
+});
 /* ═════════ 基本設定 ═════════ */
 const STATUSES = ['未開始','進行中','等待外部','暫停','待確認','完成'];
 const ST_CLASS = {'未開始':'todo','進行中':'doing','等待外部':'wait','暫停':'pause','待確認':'review','完成':'done'};
@@ -306,7 +311,10 @@ const avatar = name => `<span class="av" style="background:${personColor(name)}"
 
 function api(fn,...args){
   if(IS_DEMO && fn!=='api_login' && fn!=='api_logout') args[0]=Demo.auth(args[0]);
-  if(!IS_DEMO) return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+  if(!IS_DEMO) return new Promise((res,rej)=>{
+    const timer=setTimeout(()=>rej(new Error('伺服器沒有回應，請重新整理再試一次')),30000);
+    google.script.run.withSuccessHandler(r=>{clearTimeout(timer);res(r);}).withFailureHandler(e=>{clearTimeout(timer);rej(e);})[fn](...args);
+  });
   try{ return Promise.resolve(JSON.parse(JSON.stringify(Demo[fn](...args)))); }catch(e){ return Promise.reject(e); }
 }
 function run(fn,args,okMsg){
@@ -331,12 +339,12 @@ function toast(msg,err){
 
 /* ═════════ 回報文字（與後端同格式） ═════════ */
 function orderTasks(list){
-  const key=t=>t.project?t.project:'￿';
+  const key=t=>t.project?t.project:'\uffff';
   const first={};
   list.forEach(t=>{ const k=key(t), tm=(parseT(t.assignedAt)||0)*1; if(first[k]===undefined||tm<first[k]) first[k]=tm; });
   return list.slice().sort((a,b)=>{
     const ka=key(a), kb=key(b);
-    if(ka!==kb){ if(ka==='￿') return 1; if(kb==='￿') return -1; return (first[ka]-first[kb])||(ka<kb?-1:1); }
+    if(ka!==kb){ if(ka==='\uffff') return 1; if(kb==='\uffff') return -1; return (first[ka]-first[kb])||(ka<kb?-1:1); }
     return (parseT(a.assignedAt)||0)-(parseT(b.assignedAt)||0);
   });
 }
