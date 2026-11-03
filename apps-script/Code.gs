@@ -447,6 +447,72 @@ function mdToHtml_(text) {
   function inline_(s) { return esc_(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
 }
 
+/* ───────────── 系統設定（最高管理者） ───────────── */
+
+function mustSuper_(token) {
+  const actor = auth_(token);
+  const me = findPerson_(getPeople_(), actor);
+  if (!me || !me.super) throw new Error('只有最高管理者可以使用系統設定');
+  return actor;
+}
+
+function settingsView_() {
+  const cfg = getConfig_();
+  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') || '';
+  return {
+    hasKey: !!key,
+    keyMasked: key ? key.slice(0, 4) + '••••••••' + key.slice(-4) : '',
+    model: String(cfg['Gemini模型'] || DEFAULT_MODEL),
+    salutation: String(cfg['稱謂'] || ''),
+    title: String(cfg['系統名稱'] || ''),
+    reportTo: String(cfg['日報收件人'] || ''),
+    digestHour: String(cfg['每日摘要時間'] === '' || cfg['每日摘要時間'] == null ? 8 : cfg['每日摘要時間']),
+    url: String(cfg['系統網址'] || '')
+  };
+}
+
+function api_getSettings(token) {
+  mustSuper_(token);
+  return settingsView_();
+}
+
+/** key：有填才更新；clearKey：刪除金鑰 */
+function api_saveSettings(token, v) {
+  const actor = mustSuper_(token);
+  v = v || {};
+  const props = PropertiesService.getScriptProperties();
+  if (v.clearKey) props.deleteProperty('GEMINI_API_KEY');
+  else if (String(v.key || '').trim()) props.setProperty('GEMINI_API_KEY', String(v.key).trim());
+  if (v.model != null) setConfig_('Gemini模型', String(v.model).trim() || DEFAULT_MODEL);
+  if (v.salutation != null) setConfig_('稱謂', String(v.salutation).trim());
+  if (v.title != null) setConfig_('系統名稱', String(v.title).trim() || '每日工作追蹤');
+  if (v.reportTo != null) setConfig_('日報收件人', String(v.reportTo).trim());
+  if (v.url != null) setConfig_('系統網址', String(v.url).trim());
+  if (v.digestHour != null) {
+    const h = parseInt(v.digestHour, 10);
+    if (isNaN(h) || h < 0 || h > 23) throw new Error('每日摘要時間請填 0～23');
+    const old = parseInt(getConfig_()['每日摘要時間'], 10);
+    setConfig_('每日摘要時間', h);
+    if (h !== old && ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dailyDigest')) installTriggers();
+  }
+  return { settings: settingsView_(), data: bootstrap_(actor) };
+}
+
+function api_testAi(token, key, model) {
+  mustSuper_(token);
+  return gemini_('請只回覆「連線成功」四個字。', String(key || '').trim(), String(model || '').trim());
+}
+
+function setConfig_(name, value) {
+  const sh = sheet_(SHEET.CONFIG);
+  const vals = sh.getDataRange().getValues();
+  for (let i = 1; i < vals.length; i++) {
+    if (String(vals[i][0]).trim() === name) { sh.getRange(i + 1, 2).setValue(value); return; }
+  }
+  const d = CONFIG_DEFAULTS.filter(r => r[0] === name)[0];
+  sh.appendRow([name, value, d ? d[2] : '']);
+}
+
 /* ───────────── AI（Gemini） ───────────── */
 
 function geminiKey_() {
@@ -456,10 +522,10 @@ function geminiKey_() {
   return c;
 }
 
-function gemini_(prompt) {
-  const key = geminiKey_();
-  if (!key) throw new Error('尚未設定 Gemini API 金鑰：請到 Apps Script「專案設定 → 指令碼屬性」新增 GEMINI_API_KEY');
-  const model = String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
+function gemini_(prompt, keyOverride, modelOverride) {
+  const key = keyOverride || geminiKey_();
+  if (!key) throw new Error('尚未設定 Gemini API 金鑰：請最高管理者到「系統設定」分頁貼上金鑰');
+  const model = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
   const body = {
     systemInstruction: { parts: [{ text: '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
@@ -475,7 +541,9 @@ function gemini_(prompt) {
   if (code !== 200) {
     const msg = (json.error && json.error.message) || res.getContentText().slice(0, 200);
     if (code === 429) throw new Error('AI 使用量已達上限，請稍後再試');
-    if (code === 404) throw new Error('找不到 AI 模型「' + model + '」，請到「設定」分頁修改 Gemini模型');
+    if (code === 404) throw new Error('找不到 AI 模型「' + model + '」，請到「系統設定」換一個模型');
+    if (code === 400 && /API key/i.test(msg)) throw new Error('API 金鑰無效，請重新確認');
+    if (code === 403) throw new Error('API 金鑰沒有權限（' + msg.slice(0, 80) + '）');
     throw new Error('AI 回應錯誤（' + code + '）：' + msg);
   }
   const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];

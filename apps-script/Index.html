@@ -206,6 +206,14 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.set-sec{border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin-top:18px}
+.set-sec h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+.set-sec .desc{font-size:13.5px;color:var(--muted);margin:0 0 14px}
+.set-sec ol{margin:0 0 14px;padding-left:20px;font-size:13.5px;color:var(--muted);line-height:1.8}
+.set-sec a{color:var(--blue)}
+.key-state{font-size:13px;font-weight:600;padding:2px 10px;border-radius:999px}
+.key-state.on{background:var(--teal-soft);color:#0E7466} .key-state.off{background:var(--pink-soft);color:#C23A72}
+.test-res{margin-top:12px;font-size:14px;border-radius:4px;padding:9px 12px}
 .ai-box{background:linear-gradient(135deg,#F6EFFD,#ECF1FE);border:1px solid var(--purple-line);border-radius:6px;padding:12px 16px;font-size:14.5px;line-height:1.75;color:var(--ink)}
 .ai-box h4{margin:10px 0 4px;font-size:15px;color:var(--purple-ink)} .ai-box h4:first-child{margin-top:0}
 .ai-box ul{margin:4px 0 8px;padding-left:20px} .ai-box p{margin:3px 0}
@@ -306,7 +314,7 @@ const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['acti
 const IS_DEMO = !(window.google && google.script && google.script.run);
 const S = {
   people:[], projects:[], tasks:[], config:{salutation:'報告',title:'每日工作追蹤'}, today:'',
-  me:null, token:null, admin:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
+  me:null, token:null, admin:null, sets:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部'},
   form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true}
@@ -320,6 +328,7 @@ const ICON = {
   spark:'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2h2v7.6l5.4-5.4 1.4 1.4L14.4 11H22v2h-7.6l5.4 5.4-1.4 1.4-5.4-5.4V22h-2v-7.6l-5.4 5.4-1.4-1.4L9.6 13H2v-2h7.6L4.2 5.6l1.4-1.4L11 9.6z"/></svg>',
   type:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18 9 9l4 6 3-4 4 7z"/><path d="M4 6h16"/></svg>',
   status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M18 4l2 2-2 2"/></svg>',
   src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
 };
@@ -425,6 +434,7 @@ function render(){
   let body;
   if(S.tab==='assign') body=`<div class="wrap single"><main id="main">${assignHtml()}</main></div>`;
   else if(S.tab==='stats') body=`<div class="wrap single"><main id="main">${statsPage()}</main></div>`;
+  else if(S.tab==='settings') body=`<div class="wrap single"><main id="main">${settingsPage()}</main></div>`;
   else if(S.tab==='people') body=`<div class="wrap single"><main id="main">${peoplePage()}</main></div>`;
   else body=`<div class="wrap"><aside class="side">${sideHtml()}</aside><main id="main">${mainHtml()}</main></div>`;
   $('#app').innerHTML = topHtml(true)+body;
@@ -464,7 +474,7 @@ function topHtml(withTabs){
   const tab=(v,ic,cls,label,extra)=>`<button class="tab ${S.tab===v?'on':''} ${v==='assign'?'accent':''}" data-act="tab" data-v="${v}"><span class="ic ${cls}">${ic}</span>${label}${extra||''}</button>`;
   const tabs = withTabs ? `<nav class="tabs">
       ${tab('mine',ICON.grid,'','我的工作')}
-      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理'):''}
+      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理')+(S.isSuper?tab('settings',ICON.gear,'','系統設定'):''):''}
     </nav>` : '<div style="height:18px"></div>';
   return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。部署到 Apps Script 後才會寫入試算表與寄信。</div>':''}
   <div class="rainbow"></div>
@@ -784,6 +794,53 @@ function importModalBody(m){
     ${m.what==='tasks'?`<label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（一般 Gmail 每天約 100 封上限）</label>`:''}`;
 }
 
+/* ═════════ 系統設定（最高管理者） ═════════ */
+const MODELS=[['gemini-3.5-flash-lite','3.5 Flash-Lite（推薦：快、便宜）'],['gemini-3.8-flash','3.8 Flash（品質較好）'],['gemini-3.6-flash','3.6 Flash'],['gemini-3.1-flash-lite','3.1 Flash-Lite']];
+function settingsPage(){
+  if(!S.sets){
+    api('api_getSettings',S.token).then(v=>{ S.sets={...v,key:'',test:null}; render(); }).catch(onErr);
+    return `<section class="panel"><div class="loading">載入設定中…</div></section>`;
+  }
+  const v=S.sets, custom=!MODELS.some(m=>m[0]===v.model);
+  return `<section class="panel">
+    <div class="panel-head"><h2>系統設定</h2><span class="badge">最高管理者</span></div>
+    <div class="set-sec">
+      <h3>${SPARK} AI 設定（Gemini）<span class="key-state ${v.hasKey?'on':'off'}">${v.hasKey?'已設定金鑰 '+esc(v.keyMasked):'尚未設定金鑰'}</span></h3>
+      <ol>
+        <li>打開 <a href="https:\/\/aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio 的 API 金鑰頁面</a>，用 Google 帳號登入</li>
+        <li>按「Create API key」建立金鑰並複製</li>
+        <li>貼到下面，先按「測試連線」，成功後按「儲存設定」</li>
+      </ol>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>API 金鑰${v.hasKey?'<span class="opt">留空表示不變</span>':''}</label><input class="inp" type="password" data-bind="st.key" value="${esc(v.key)}" placeholder="${v.hasKey?'輸入新金鑰即可替換':'貼上以 AIza 開頭的金鑰'}" autocomplete="off"></div>
+        <div class="field"><label>模型</label><select class="inp" data-bind="st.model">${MODELS.map(m=>`<option value="${m[0]}" ${v.model===m[0]?'selected':''}>${m[1]}</option>`).join('')}${custom?`<option value="${esc(v.model)}" selected>${esc(v.model)}</option>`:''}</select></div>
+      </div>
+      <div class="imp-acts" style="margin-top:14px">
+        <button class="btn ai" data-act="testAi" ${v.testing?'disabled':''}>${v.testing?'<span class="spin"></span> 測試中…':'測試連線'}</button>
+        ${v.hasKey?'<button class="btn pink" data-act="clearKey">移除金鑰</button>':''}
+      </div>
+      ${v.test?`<div class="test-res ${v.test.ok?'oklist':'errlist'}">${esc(v.test.msg)}</div>`:''}
+    </div>
+    <div class="set-sec">
+      <h3>日報與通知</h3>
+      <p class="desc">稱謂會用在 LINE 回報文字的第一句。</p>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>回報稱謂</label><input class="inp" data-bind="st.salutation" value="${esc(v.salutation)}" placeholder="例：報告正翰"></div>
+        <div class="field"><label>每天早上寄摘要的時間</label><select class="inp" data-bind="st.digestHour">${Array.from({length:24},(_,h)=>`<option value="${h}" ${String(h)===String(v.digestHour)?'selected':''}>${pad2(h)}:00</option>`).join('')}</select></div>
+        <div class="field full"><label>日報收件人<span class="opt">留空＝寄給該員工的負責主管；多個 Email 用逗號分隔</span></label><input class="inp" data-bind="st.reportTo" value="${esc(v.reportTo)}" placeholder="manager@gmail.com"></div>
+      </div>
+    </div>
+    <div class="set-sec">
+      <h3>系統</h3>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>系統名稱</label><input class="inp" data-bind="st.title" value="${esc(v.title)}"></div>
+        <div class="field"><label>系統網址<span class="opt">信件裡「開啟系統」按鈕用</span></label><input class="inp" data-bind="st.url" value="${esc(v.url)}" placeholder="部署後的 …/exec 網址"></div>
+      </div>
+    </div>
+    <div class="form-foot"><span></span><button class="btn primary" data-act="saveSettings">儲存設定</button></div>
+  </section>`;
+}
+
 /* ═════════ AI 顯示 ═════════ */
 function mdHtml(text){
   const out=[]; let inList=false;
@@ -1020,7 +1077,7 @@ function renderModal(){
 /* ═════════ 動作 ═════════ */
 const A = {
   noop(){},
-  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; render(); window.scrollTo(0,0); },
+  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; if(S.tab==='settings') S.sets=null; render(); window.scrollTo(0,0); },
   f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
   sf(el){ S.sf[el.dataset.k]=el.dataset.v; render(); },
   logout(){ const tk=S.token; logoutLocal(); render(); api('api_logout',tk).catch(()=>{}); },
@@ -1134,6 +1191,24 @@ const A = {
       .catch(err=>{ r.loading=false; render(); onErr(err); });
   },
   copyAi(){ copyText(S.aiRange.text,'已複製分析內容'); },
+  testAi(){
+    const v=S.sets; if(!v.key.trim()&&!v.hasKey) return toast('請先貼上 API 金鑰',true);
+    v.testing=true; v.test=null; render();
+    api('api_testAi',S.token,v.key.trim(),v.model).then(txt=>{ v.testing=false; v.test={ok:true,msg:'連線成功，AI 回覆：'+txt+(v.key.trim()?'。記得按「儲存設定」。':'')}; render(); })
+      .catch(err=>{ v.testing=false; v.test={ok:false,msg:(err&&err.message)||String(err)}; render(); });
+  },
+  clearKey(){
+    document.body.classList.add('busy');
+    api('api_saveSettings',S.token,{clearKey:true}).then(res=>{ document.body.classList.remove('busy'); applyData(res.data); S.sets={...res.settings,key:'',test:null}; render(); toast('已移除金鑰'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  saveSettings(){
+    const v=S.sets;
+    document.body.classList.add('busy');
+    api('api_saveSettings',S.token,{key:v.key,model:v.model,salutation:v.salutation,title:v.title,reportTo:v.reportTo,url:v.url,digestHour:v.digestHour})
+      .then(res=>{ document.body.classList.remove('busy'); applyData(res.data); S.sets={...res.settings,key:'',test:null}; render(); toast('設定已儲存'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
   formType(el){ S.form.type=el.dataset.v; render(); },
   submitAssign(){
     const f=S.form;
@@ -1157,6 +1232,7 @@ function onBind(e){
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
   if(scope==='ar'){ S.aiRange[key]=val; return; }
+  if(scope==='st'){ S.sets[key]=val; return; }
   if(scope==='form') S.form[key]=val;
   if(scope==='m' && S.modal){
     S.modal[key]=val;
@@ -1231,6 +1307,7 @@ const Demo=(()=>{
     else ppl.push(rec);
   };
   const reported={};
+  const demoSet={hasKey:true,keyMasked:'AIza••••••••x9Qk',model:'gemini-3.5-flash-lite',salutation:'報告正翰',title:'每日工作追蹤',reportTo:'',digestHour:'8',url:''};
   const boot=actor=>({me:role(actor)?actor:'',isSuper:actor==='正翰',aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
     config:{salutation:'報告正翰',title:'每日工作追蹤'},today:fd(now())});
@@ -1241,6 +1318,10 @@ const Demo=(()=>{
     api_login(acc,pw){ const p=ppl.find(x=>x.account&&x.account.toLowerCase()===String(acc).toLowerCase()); if(!p||p.password!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+p.name,data:boot(p.name)}; },
     api_logout(){ return true; },
     api_people(a){ mustMgr(a); return adm(); },
+    api_getSettings(a){ return {...demoSet}; },
+    api_saveSettings(a,v){ if(v.clearKey){ demoSet.hasKey=false; demoSet.keyMasked=''; } else if(v.key){ demoSet.hasKey=true; demoSet.keyMasked=v.key.slice(0,4)+'••••••••'+v.key.slice(-4); }
+      ['model','salutation','title','reportTo','url','digestHour'].forEach(k=>{ if(v[k]!=null) demoSet[k]=v[k]; }); return {settings:{...demoSet},data:boot(a)}; },
+    api_testAi(a,key){ if(!key&&!demoSet.hasKey) throw new Error('尚未設定金鑰'); return '連線成功（預覽模式）'; },
     api_aiDaily(a){ return '- 完成福國社宅初驗複驗總結會議紀錄確認，已提報主管\n- 建築模組案期末報告持續修正，第三季執委會會議紀錄進度 75%\n- **北市圖資案**仍在等待叡揚報價，已逾期 2 天，可能需要主管協助催辦\n- 明日重點：完成會議紀錄併入報告書、再次追蹤叡揚'; },
     api_sendDailyReport(a,text,ai){ reported[a]=true; return {sentTo:['manager@example.com'],ai:ai,data:boot(a)}; },
     api_aiPerson(a,n){ mustMgr(a); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成'); return n+' 目前手上有 '+open.length+' 件未完成工作，重點在建築模組案期末報告與北市圖資案。近 7 天回報穩定，'+(open.some(isOverdue)?'但有逾期項目需要注意。':'沒有逾期項目。')+'（預覽模式的示範文字）'; },
