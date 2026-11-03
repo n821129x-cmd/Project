@@ -4,9 +4,12 @@
 
 | 檔案 | 說明 |
 |---|---|
-| `Code.gs` | 後端程式 |
-| `Index.html` | 網頁介面（直接用瀏覽器打開為預覽模式） |
-| `appsscript.json` | 時區與部署設定 |
+| `apps-script/Code.gs` | 後端程式 |
+| `apps-script/Index.html` | 網頁介面（直接用瀏覽器打開為預覽模式） |
+| `apps-script/appsscript.json` | 時區與部署設定 |
+| `index.html` | GitHub Pages 首頁，自動跳轉到 Apps Script 系統網址 |
+
+> 重新部署成新網址時，記得把 `index.html` 裡的兩個網址一起改掉。
 
 
 ## 一、建立系統（約 10 分鐘）
