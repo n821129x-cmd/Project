@@ -16,7 +16,7 @@
  */
 
 const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報' };
-const REPORT_COLS = ['日期', '姓名', '寄出時間', 'LINE文字', 'AI摘要', '工作數'];
+const REPORT_COLS = ['日期', '姓名', '寄出時間', '回報說明', 'AI摘要', '工作數'];
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_HEADER = '今日工作進度報告如下：';
 function reportHeader_(cfg) { return String((cfg || getConfig_())['回報開頭'] || DEFAULT_HEADER).trim() || DEFAULT_HEADER; }
@@ -41,7 +41,7 @@ const ADMIN_ROW = ['管理者', '主管', '', '', 'n821129x', 'n821129x'];
 const SESSION_DAYS = 14;
 const LOG_COLS = ['時間', 'ID', '回報人', '狀態', '進度', '內容', '來源', '訊息ID'];
 const CONFIG_DEFAULTS = [
-  ['回報開頭', '今日工作進度報告如下：', 'LINE 回報文字的第一句'],
+  ['回報開頭', '今日工作進度報告如下：', '回報說明的第一句'],
   ['系統名稱', '每日工作追蹤', '網頁標題與寄件者名稱'],
   ['系統網址', '', '部署網頁應用程式後貼上，信件中的「開啟系統」按鈕會用到'],
   ['每日摘要時間', 8, '每天幾點寄摘要（0–23），修改後要重新執行「安裝自動排程」'],
@@ -379,7 +379,7 @@ function api_aiDaily(token) {
   return aiDailyText_(actor);
 }
 
-/** 寄出日報：LINE 文字 ＋ AI 摘要 ＋ 工作表格 */
+/** 寄出日報：回報說明 ＋ AI 摘要 ＋ 工作表格 */
 function api_sendDailyReport(token, lineText, aiText) {
   const actor = auth_(token);
   const people = getPeople_();
@@ -404,10 +404,10 @@ function api_sendDailyReport(token, lineText, aiText) {
 
   const md = fmt_(new Date(), 'M/d');
   const html = mailShell_(cfg, md + ' ' + actor + ' 工作日報',
-    sectionTitle_('1', 'LINE 回報文字') + preHtml_(text) +
+    sectionTitle_('1', '回報說明') + preHtml_(text) +
     (ai ? sectionTitle_('2', 'AI 進度摘要') + '<div style="background:#F6EFFD;border:1px solid #E6D2F8;border-radius:6px;padding:12px 16px;font-size:14.5px;line-height:1.8">' + mdToHtml_(ai) + '</div>' : '') +
     sectionTitle_(ai ? '3' : '2', '工作明細（' + tasks.length + ' 件）') + taskTableHtml_(tasks, today));
-  const plain = '【LINE 回報文字】\n' + text + (ai ? '\n\n【AI 進度摘要】\n' + ai : '') + '\n\n【工作明細】\n' +
+  const plain = '【回報說明】\n' + text + (ai ? '\n\n【AI 進度摘要】\n' + ai : '') + '\n\n【工作明細】\n' +
     tasks.map(t => '#' + t.id + ' ' + lineCore_(t) + '｜' + t.status + (isNum_(t.progress) ? ' ' + t.progress + '%' : '') + '｜期限 ' + dateStr_(t.due)).join('\n');
   const opt = { htmlBody: html, name: actor + '（' + String(cfg['系統名稱'] || '每日工作追蹤') + '）' };
   if (me.email) { opt.replyTo = me.email; opt.cc = me.email; }
@@ -1106,7 +1106,7 @@ function dailyDigest_(force) {
   managers.forEach(m => GmailApp.sendEmail(m.email, '【團隊摘要】' + md + ' 作業進度', plain, { htmlBody: html, name: name }));
 }
 
-/** 產生 LINE 回報文字：第一句為「回報開頭」，下面逐項列出 */
+/** 產生回報說明：第一句為「回報開頭」，下面逐項列出 */
 function buildReportText_(tasks, salutation, today, withHeader) {
   const list = orderTasks_(tasks);
   const lines = withHeader ? [salutation, ''] : [];

@@ -868,9 +868,9 @@ function settingsPage(){
     </div>
     <div class="set-sec">
       <h3>日報與通知</h3>
-      <p class="desc">「LINE 回報開頭」是員工 LINE 回報文字的第一句。</p>
+      <p class="desc">「回報說明開頭」是員工回報說明的第一句。</p>
       <div class="form-grid" style="margin-top:0">
-        <div class="field"><label>LINE 回報開頭</label><input class="inp" data-bind="st.salutation" value="${esc(v.salutation)}" placeholder="今日工作進度報告如下："></div>
+        <div class="field"><label>回報說明開頭</label><input class="inp" data-bind="st.salutation" value="${esc(v.salutation)}" placeholder="今日工作進度報告如下："></div>
         <div class="field"><label>未寄日報自動提醒時間<span class="opt">提醒當天沒寄日報的員工</span></label><select class="inp" data-bind="st.reminderTime">${Array.from({length:24},(_,i)=>pad2(18+Math.floor(i/4))+':'+pad2((i%4)*15)).map(t=>`<option ${t===v.reminderTime?'selected':''}>${t}</option>`).join('')}</select></div>
         <div class="field"><label>每天早上寄摘要的時間</label><select class="inp" data-bind="st.digestHour">${Array.from({length:24},(_,h)=>`<option value="${h}" ${String(h)===String(v.digestHour)?'selected':''}>${pad2(h)}:00</option>`).join('')}</select></div>
         <div class="field full"><label>日報收件人<span class="opt">留空＝寄給該員工的負責主管；多個 Email 用逗號分隔</span></label><input class="inp" data-bind="st.reportTo" value="${esc(v.reportTo)}" placeholder="manager@gmail.com"></div>
@@ -1095,13 +1095,13 @@ function renderModal(){
       cancel+`<button class="btn danger" data-act="submitDelete">確定刪除</button>`);
   }
   else if(m.kind==='text'){
-    html=shell('今日回報',S.reportedToday?'今天已寄過日報，再寄一次會覆蓋成最新版本給主管':'可複製貼到 LINE，或直接寄日報給主管',
-      `<div class="rep-sec"><span class="n">1</span>LINE 回報文字<button class="btn sm" data-act="copy" style="margin-left:auto">複製</button></div>
+    html=shell('今日回報',S.reportedToday?'今天已寄過日報，再寄一次會寄出最新版本給主管':'可複製使用，或直接寄日報給主管',
+      `<div class="rep-sec"><span class="n">1</span>回報說明<button class="btn sm" data-act="copy" style="margin-left:auto">複製</button></div>
        <textarea class="inp report-text" id="repText" data-bind="m.text" style="min-height:220px">${esc(m.text)}</textarea>
        ${isMgr(S.me)?`<div class="rep-sec"><span class="n">2</span>AI 進度摘要<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">可修改</span>
          ${S.aiEnabled?`<button class="btn sm ai" data-act="aiDaily" style="margin-left:auto" ${m.aiLoading?'disabled':''}>${m.aiLoading?'<span class="spin"></span> 彙整中':SPARK+' AI 彙整'}</button>`:''}</div>
        ${S.aiEnabled?`<textarea class="inp" data-bind="m.ai" style="min-height:110px" placeholder="按「AI 彙整」自動產生；留空的話寄出時會自動產生">${esc(m.ai)}</textarea>`
-         :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含 LINE 文字與工作表格。</div>'}`
+         :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含回報說明與工作表格。</div>'}`
        :`<div class="note" style="margin-top:14px">寄出後，主管收到的日報會附上工作明細表格${S.aiEnabled?'與系統自動產生的進度摘要':''}。請先在系統上把每件工作的進度更新好再寄出。</div>`}
        <div class="rep-sec"><span class="n">${isMgr(S.me)?3:2}</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`,
       `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="sendReport" ${m.sending?'disabled':''}>${m.sending?'<span class="spin"></span> 寄送中…':'寄出日報給主管'}</button>`,true);
@@ -1216,7 +1216,7 @@ const A = {
     if(!list.length) return toast('目前沒有工作',true);
     S.modal={kind:'text',color:'#2D5BE3',text:buildReportText(list),ai:'',count:list.length}; renderModal();
   },
-  copy(){ copyText($('#repText').value,'已複製，可以貼到 LINE'); },
+  copy(){ copyText($('#repText').value,'已複製回報說明'); },
   aiDaily(){
     const m=S.modal; m.aiLoading=true; renderModal();
     api('api_aiDaily',S.token).then(txt=>{ if(S.modal===m){ m.ai=txt; m.aiLoading=false; renderModal(); } })
