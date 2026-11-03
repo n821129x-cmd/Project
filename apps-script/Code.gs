@@ -533,7 +533,9 @@ function api_saveSettings(token, v) {
 
 function api_testAi(token, key, model) {
   mustSuper_(token);
-  return gemini_('請只回覆「連線成功」四個字。', String(key || '').trim(), String(model || '').trim());
+  const txt = gemini_('請只回覆「連線成功」四個字。', String(key || '').trim(), String(model || '').trim());
+  const want = String(model || '').trim() || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL);
+  return txt + (LAST_AI_MODEL && LAST_AI_MODEL !== want ? '（' + want + ' 目前忙碌或無法使用，這次改用 ' + LAST_AI_MODEL + '；平常使用時也會自動切換）' : '');
 }
 
 function setConfig_(name, value) {
@@ -555,34 +557,61 @@ function geminiKey_() {
   return c;
 }
 
+const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash'];
+let LAST_AI_MODEL = '';
+
+/** 呼叫 Gemini；遇到暫時忙碌（429/500/503）會重試，仍失敗就自動改用其他模型 */
 function gemini_(prompt, keyOverride, modelOverride) {
   const key = keyOverride || geminiKey_();
   if (!key) throw new Error('尚未設定 Gemini API 金鑰：請最高管理者到「系統設定」分頁貼上金鑰');
-  const model = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-  const body = {
+  const first = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
+  const models = [first].concat(FALLBACK_MODELS.filter(m => m !== first));
+  const body = JSON.stringify({
     systemInstruction: { parts: [{ text: '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }]
-  };
-  const res = UrlFetchApp.fetch(url, {
-    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body)
   });
+  const started = Date.now();
+  let lastBusy = '';
+  for (let mi = 0; mi < models.length; mi++) {
+    const model = models[mi];
+    const tries = mi === 0 ? 3 : 1;                 // 指定模型重試 3 次，備用模型各試 1 次
+    for (let a = 0; a < tries; a++) {
+      if (Date.now() - started > 45000) break;       // 避免超過網頁等待時間
+      const r = geminiOnce_(model, key, body);
+      if (r.ok) { LAST_AI_MODEL = model; return r.text; }
+      if (r.fatal) throw new Error(r.error);
+      if (r.skipModel) break;                         // 這個模型不存在或不可用，換下一個
+      lastBusy = r.error;
+      if (a < tries - 1) Utilities.sleep(1500 * (a + 1));
+    }
+  }
+  throw new Error('AI 目前忙碌中（Google 伺服器使用量過高），已自動重試並改用其他模型仍無法完成，請過幾分鐘再試。' + (lastBusy ? '（' + lastBusy + '）' : ''));
+}
+
+function geminiOnce_(model, key, body) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+  let res;
+  try {
+    res = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': key }, payload: body });
+  } catch (e) {
+    return { ok: false, error: '連線失敗：' + e.message };
+  }
   const code = res.getResponseCode();
   let json = {};
   try { json = JSON.parse(res.getContentText()); } catch (e) { /* 非 JSON */ }
-  if (code !== 200) {
-    const msg = (json.error && json.error.message) || res.getContentText().slice(0, 200);
-    if (code === 429) throw new Error('AI 使用量已達上限，請稍後再試');
-    if (code === 404) throw new Error('找不到 AI 模型「' + model + '」，請到「系統設定」換一個模型');
-    if (code === 400 && /API key/i.test(msg)) throw new Error('API 金鑰無效，請重新確認');
-    if (code === 403) throw new Error('API 金鑰沒有權限（' + msg.slice(0, 80) + '）');
-    throw new Error('AI 回應錯誤（' + code + '）：' + msg);
+  if (code === 200) {
+    const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];
+    const text = parts.filter(p => !p.thought).map(p => p.text || '').join('').trim();
+    return text ? { ok: true, text: text } : { ok: false, error: 'AI 沒有回傳內容' };
   }
-  const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];
-  const text = parts.filter(p => !p.thought).map(p => p.text || '').join('').trim();
-  if (!text) throw new Error('AI 沒有回傳內容，請再試一次');
-  return text;
+  const msg = (json.error && json.error.message) || res.getContentText().slice(0, 200);
+  if (code === 400 && /API key/i.test(msg)) return { fatal: true, error: 'API 金鑰無效，請重新確認' };
+  if (code === 401 || code === 403) return { fatal: true, error: 'API 金鑰沒有權限（' + msg.slice(0, 80) + '）' };
+  if (code === 404) return { skipModel: true, error: '找不到模型 ' + model };
+  if (code === 429 && /quota|billing|exceeded your current quota/i.test(msg) && !/per minute|rate/i.test(msg)) {
+    return { fatal: true, error: 'AI 免費額度已用完，請明天再試或到 Google AI Studio 查看用量' };
+  }
+  return { ok: false, error: model + ' ' + code };
 }
 
 function taskBrief_(t, today) {

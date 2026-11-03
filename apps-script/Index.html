@@ -395,8 +395,9 @@ function run(fn,args,okMsg){
     applyData(res); S.modal=null; render(); if(okMsg) toast(okMsg);
   }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
 }
+function errMsg(err){ return String((err&&err.message)||err||'').replace(/^(Uncaught\s+)?(Exception|Error|TypeError)\s*[:：]\s*/,''); }
 function onErr(err){
-  const msg=(err&&err.message)||String(err);
+  const msg=errMsg(err);
   if(/重新登入/.test(msg)){ logoutLocal(); S.login.err=msg; render(); return; }
   toast(msg,true);
 }
@@ -478,7 +479,7 @@ function doLogin(){
     S.token=res.token; store('dtt.token',res.token);
     S.login={account:'',password:'',err:''}; S.tab='mine';
     applyData(res.data); render();
-  }).catch(err=>{ document.body.classList.remove('busy'); L.password=''; L.err=(err&&err.message)||String(err); render(); });
+  }).catch(err=>{ document.body.classList.remove('busy'); L.password=''; L.err=errMsg(err); render(); });
 }
 document.addEventListener('submit',e=>{ if(e.target.dataset.form==='login'){ e.preventDefault(); doLogin(); } });
 
@@ -822,7 +823,7 @@ function pickFile(kind){
         const rows=parseSheet(kind,new Uint8Array(rd.result));
         if(!rows.length) return toast('檔案裡沒有資料',true);
         S.modal={kind:'import',what:kind,rows,file:f.name,notify:false,color:'#8A55D6'}; renderModal();
-      }catch(err){ toast((err&&err.message)||String(err),true); }
+      }catch(err){ toast(errMsg(err),true); }
     };
     rd.readAsArrayBuffer(f);
   };
@@ -1246,7 +1247,7 @@ const A = {
     const v=S.sets; if(!v.key.trim()&&!v.hasKey) return toast('請先貼上 API 金鑰',true);
     v.testing=true; v.test=null; render();
     api('api_testAi',S.token,v.key.trim(),v.model).then(txt=>{ v.testing=false; v.test={ok:true,msg:'連線成功，AI 回覆：'+txt+(v.key.trim()?'。記得按「儲存設定」。':'')}; render(); })
-      .catch(err=>{ v.testing=false; v.test={ok:false,msg:(err&&err.message)||String(err)}; render(); });
+      .catch(err=>{ v.testing=false; v.test={ok:false,msg:errMsg(err)}; render(); });
   },
   clearKey(){
     document.body.classList.add('busy');
@@ -1418,7 +1419,7 @@ const Demo=(()=>{
   if(!saved){ render(); return; }
   S.token=saved;
   api('api_bootstrap',saved).then(res=>{ applyData(res); render(); })
-    .catch(err=>{ logoutLocal(); const m=(err&&err.message)||String(err); S.login.err=/重新登入/.test(m)?'':m; render(); });
+    .catch(err=>{ logoutLocal(); const m=errMsg(err); S.login.err=/重新登入/.test(m)?'':m; render(); });
 })();
 
 })();
