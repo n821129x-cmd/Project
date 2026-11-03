@@ -243,11 +243,23 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 <div id="tip"></div>
 
 <script>
-/* 發生錯誤時顯示訊息，不要一直停在「載入中」 */
+/* 獨立的錯誤提示：主程式出錯時顯示原因，不要一直停在「載入中」 */
+window.__appStarted=false;
 window.addEventListener('error',function(e){
   var a=document.getElementById('app');
-  if(a) a.innerHTML='<div class="loading">網頁發生錯誤：'+String(e.message||e).replace(/</g,'&lt;')+'<br>請截圖給系統管理者</div>';
+  if(a) a.innerHTML='<div class="loading">網頁發生錯誤：'+String(e.message||e).replace(/</g,'&lt;')+(e.lineno?'（第 '+e.lineno+' 行）':'')+'<br>請截圖給系統管理者</div>';
 });
+setTimeout(function(){
+  if(!window.__appStarted){
+    var a=document.getElementById('app');
+    if(a && /載入中/.test(a.textContent)) a.innerHTML='<div class="loading">主程式沒有啟動（可能是程式碼貼上不完整）。<br>請確認 Index.html 有完整貼上，最後一行是 &lt;/html&gt;。</div>';
+  }
+},8000);
+</script>
+<script>
+(function(){
+'use strict';
+window.__appStarted=true;
 /* ═════════ 基本設定 ═════════ */
 const STATUSES = ['未開始','進行中','等待外部','暫停','待確認','完成'];
 const ST_CLASS = {'未開始':'todo','進行中':'doing','等待外部':'wait','暫停':'pause','待確認':'review','完成':'done'};
@@ -927,6 +939,8 @@ const Demo=(()=>{
   S.token=saved;
   api('api_bootstrap',saved).then(res=>{ applyData(res); render(); })
     .catch(err=>{ logoutLocal(); const m=(err&&err.message)||String(err); S.login.err=/重新登入/.test(m)?'':m; render(); });
+})();
+
 })();
 </script>
 </body>
