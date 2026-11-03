@@ -290,7 +290,7 @@ const ICON = {
 /* ═════════ 工具 ═════════ */
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function parseT(s){ if(!s) return null; const d=new Date(String(s).replace(/\//g,'-').replace(' ','T')); return isNaN(d)?null:d; }
+function parseT(s){ if(!s) return null; const d=new Date(String(s).split('/').join('-').replace(' ','T')); return isNaN(d)?null:d; }
 function dOnly(s){ const d=parseT(String(s).slice(0,10)+'T00:00'); return d?d.getTime():NaN; }
 function dayDiff(a,b){ return Math.round((dOnly(b)-dOnly(a))/864e5); }
 function md(s){ if(!s) return '—'; const p=String(s).slice(5,10).split('-'); return (+p[0])+'/'+(+p[1]); }
@@ -581,7 +581,7 @@ function assignHtml(){
       <div class="field full"><label>工作內容</label>
         <textarea class="inp" data-bind="form.content" placeholder="例：確認福國社宅初驗複驗總結會議紀錄與表單內容">${esc(f.content)}</textarea></div>
       <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="form.due" value="${esc(f.due)}" min="${S.today}"></div>
-      <div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https://"></div>
+      <div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https:\/\/"></div>
     </div>
     <div class="form-foot">
       <label class="check"><input type="checkbox" data-bind="form.notify" ${f.notify?'checked':''}> 寄 Email 通知承辦人</label>
@@ -702,7 +702,7 @@ function renderModal(){
       <div class="field full"><label>工作內容</label><textarea class="inp" data-bind="m.content">${esc(m.content)}</textarea></div>
       <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="m.due" value="${esc(m.due)}" min="${S.today}"></div>
       ${!isMgr(S.me)&&mgrs.length>1?`<div class="field"><label>回報主管</label><select class="inp" data-bind="m.owner">${mgrs.map(p=>`<option ${m.owner===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`
-        :`<div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="m.link" value="${esc(m.link)}" placeholder="https://"></div>`}
+        :`<div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="m.link" value="${esc(m.link)}" placeholder="https:\/\/"></div>`}
       </div>`, cancel+`<button class="btn primary" data-act="submitAdd">新增</button>`);
   }
   else if(m.kind==='report'){
@@ -868,8 +868,8 @@ const Demo=(()=>{
   const mk=(id,o)=>Object.assign({id,type:'專案執行',source:'主管交辦',project:'',content:'',owner:'正翰',assignee:'示範員工',due:fd(day(3)),assignedAt:fdt(day(-5)),startedAt:fdt(day(-4,10,20)),submittedAt:'',doneAt:'',updatedAt:fdt(day(-1)),status:'進行中',progress:'',latest:'',waitingFor:'',link:''},o);
   const done=(o,d)=>Object.assign({status:'完成',startedAt:fdt(day(-d-4,10)),submittedAt:fdt(day(-d,16)),doneAt:fdt(day(-d,17)),assignedAt:fdt(day(-d-5)),due:fd(day(-d+1))},o);
   let tasks=[
-    mk('T0001',{project:'國家住都中心-PMIS案',content:'客服確認及處理問題（每日回報）',latest:'昨日使用者詢問16人：帳號管理3、日報表6、預算書/預定進度3、估驗計價4',due:fd(day(0)),assignedAt:fdt(day(-20)),startedAt:fdt(day(-20,9,30)),link:'https://reurl.cc/jrv8RM'}),
-    mk('T0002',{project:'國家住都中心-PMIS案',content:'工程計價模組與工程稽查模組欄位與計算方式彙整',status:'等待外部',waitingFor:'住都中心',progress:100,latest:'各式欄位與計算方式已彙整完成，待中心確認整體價金算法',due:fd(day(5)),assignedAt:fdt(day(-26)),startedAt:fdt(day(-26,14)),link:'https://reurl.cc/qabq0g'}),
+    mk('T0001',{project:'國家住都中心-PMIS案',content:'客服確認及處理問題（每日回報）',latest:'昨日使用者詢問16人：帳號管理3、日報表6、預算書/預定進度3、估驗計價4',due:fd(day(0)),assignedAt:fdt(day(-20)),startedAt:fdt(day(-20,9,30)),link:'https:\/\/reurl.cc/jrv8RM'}),
+    mk('T0002',{project:'國家住都中心-PMIS案',content:'工程計價模組與工程稽查模組欄位與計算方式彙整',status:'等待外部',waitingFor:'住都中心',progress:100,latest:'各式欄位與計算方式已彙整完成，待中心確認整體價金算法',due:fd(day(5)),assignedAt:fdt(day(-26)),startedAt:fdt(day(-26,14)),link:'https:\/\/reurl.cc/qabq0g'}),
     mk('T0003',{project:'建築模組案',content:'撰擬期末報告內容',latest:'與晏晨完成初稿，今日針對有問題部分修正',due:fd(day(0)),assignedAt:fdt(day(-12))}),
     mk('T0004',{project:'建築模組案',content:'第三季執行委員會會議紀錄並併入報告書',progress:75,latest:'會議紀錄撰擬中，今日完成',due:fd(day(1)),assignedAt:fdt(day(-6))}),
     mk('T0005',{project:'北市圖資案',content:'追蹤圖資轉檔進度',status:'等待外部',waitingFor:'叡揚',latest:'叡揚報價單尚未提供，持續追蹤',due:fd(day(-2)),assignedAt:fdt(day(-14))}),
