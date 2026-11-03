@@ -7,6 +7,9 @@
  *   3. 部署 → 新增部署作業 → 網頁應用程式，把網址貼到「設定」分頁的「系統網址」
  *   4. 選單「代辦系統 → ② 安裝自動排程」
  *
+ * 登入：
+ *   帳號密碼寫在「人員」分頁的「帳號」「密碼」欄；預設管理者帳號 n821129x／n821129x
+ *
  * 權限：
  *   主管：指派、轉派、確認完成、退回、刪除、看全部與統計圖表
  *   員工：自行新增工作、開始、回報、提報完成（送主管確認），只看得到自己的工作
@@ -29,7 +32,9 @@ const TASK_COLS = [
   ['status', '狀態'], ['progress', '進度'], ['latest', '最新回報'], ['waitingFor', '等待對象'],
   ['link', '連結'], ['updatedAt', '最後更新']
 ];
-const PEOPLE_COLS = ['姓名', '角色', 'Email', 'LINE名稱'];
+const PEOPLE_COLS = ['姓名', '角色', 'Email', 'LINE名稱', '帳號', '密碼'];
+const ADMIN_ROW = ['管理者', '主管', '', '', 'n821129x', 'n821129x'];
+const SESSION_DAYS = 14;
 const LOG_COLS = ['時間', 'ID', '回報人', '狀態', '進度', '內容', '來源', '訊息ID'];
 const CONFIG_DEFAULTS = [
   ['稱謂', '報告正翰', '每日回報第一句的稱謂'],
@@ -56,7 +61,8 @@ function onOpen() {
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ss.setSpreadsheetTimeZone(TZ);
-  ensureSheet_(ss, SHEET.PEOPLE, PEOPLE_COLS, [['正翰', '主管', '', ''], ['範例員工', '員工', '', '']]);
+  ensureSheet_(ss, SHEET.PEOPLE, PEOPLE_COLS, [ADMIN_ROW, ['範例員工', '員工', '', '', 'staff01', '1234']]);
+  ensurePeopleCols_();
   ensureSheet_(ss, SHEET.TASKS, TASK_COLS.map(c => c[1])).getRange('A:A').setNumberFormat('@');
   ensureTaskCols_();
   ensureSheet_(ss, SHEET.LOG, LOG_COLS);
@@ -110,8 +116,77 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+/* ───────────── 登入 ───────────── */
+
+function api_login(account, password) {
+  ensurePeopleCols_();
+  const acc = String(account || '').trim().toLowerCase();
+  if (!acc || !password) throw new Error('請輸入帳號與密碼');
+  const cache = CacheService.getScriptCache();
+  const failKey = 'fail_' + acc;
+  const fails = Number(cache.get(failKey) || 0);
+  if (fails >= 5) throw new Error('密碼錯誤太多次，請 10 分鐘後再試');
+  const p = getPeople_().filter(x => x.account && x.account.toLowerCase() === acc)[0];
+  if (!p || p.password !== String(password)) {
+    cache.put(failKey, String(fails + 1), 600);
+    throw new Error('帳號或密碼錯誤');
+  }
+  cache.remove(failKey);
+  const token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  const props = PropertiesService.getScriptProperties();
+  cleanSessions_(props);
+  props.setProperty('s_' + token, JSON.stringify({ n: p.name, e: Date.now() + SESSION_DAYS * 864e5 }));
+  return { token: token, data: bootstrap_(p.name) };
+}
+
+function api_logout(token) {
+  if (token) PropertiesService.getScriptProperties().deleteProperty('s_' + token);
+  return true;
+}
+
+/** 由登入憑證取得使用者姓名；失效時丟出「請重新登入」 */
+function auth_(token) {
+  const fail = () => { throw new Error('登入已過期，請重新登入'); };
+  if (!token) fail();
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty('s_' + token);
+  if (!raw) fail();
+  const s = JSON.parse(raw);
+  if (s.e < Date.now()) { props.deleteProperty('s_' + token); fail(); }
+  if (!findPerson_(getPeople_(), s.n)) { props.deleteProperty('s_' + token); fail(); }
+  return s.n;
+}
+
+function cleanSessions_(props) {
+  const all = props.getProperties(), now = Date.now();
+  Object.keys(all).forEach(k => {
+    if (k.indexOf('s_') !== 0) return;
+    try { if (JSON.parse(all[k]).e < now) props.deleteProperty(k); } catch (e) { props.deleteProperty(k); }
+  });
+}
+
+/** 舊版人員表補上帳號密碼欄，並確保有管理者帳號 */
+function ensurePeopleCols_() {
+  const sh = sheet_(SHEET.PEOPLE);
+  const lastCol = Math.max(1, sh.getLastColumn());
+  const head = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const missing = PEOPLE_COLS.filter(h => head.indexOf(h) < 0);
+  if (missing.length) {
+    sh.getRange(1, lastCol + 1, 1, missing.length).setValues([missing])
+      .setFontWeight('bold').setBackground('#ECF1FE').setFontColor('#1C1B2E');
+  }
+  if (!getPeople_().some(p => p.account.toLowerCase() === ADMIN_ROW[4])) {
+    const h2 = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    sh.appendRow(h2.map(h => { const i = PEOPLE_COLS.indexOf(h); return i >= 0 ? ADMIN_ROW[i] : ''; }));
+  }
+}
+
+/* ───────────── 資料 API（第一個參數都是登入憑證） ───────────── */
+
+function api_bootstrap(token) { return bootstrap_(auth_(token)); }
+
 /** 主管拿到全部工作；員工只拿到自己的 */
-function api_bootstrap(actor) {
+function bootstrap_(actor) {
   const cfg = getConfig_();
   const all = getPeople_();
   const people = all.map(p => ({ name: p.name, role: p.role, hasEmail: !!p.email }));
@@ -123,6 +198,7 @@ function api_bootstrap(actor) {
     if (me.role !== '主管') tasks = tasks.filter(t => t.assignee === me.name);
   }
   return {
+    me: me ? me.name : '',
     people: people,
     projects: projects,
     tasks: tasks.map(toClient_),
@@ -132,7 +208,8 @@ function api_bootstrap(actor) {
 }
 
 /** 主管：指派給任何人。員工：只能新增給自己（來源＝自行新增） */
-function api_createTask(actor, p) {
+function api_createTask(token, p) {
+  const actor = auth_(token);
   const people = getPeople_();
   const me = mustPerson_(people, actor);
   const mgr = me.role === '主管';
@@ -169,10 +246,11 @@ function api_createTask(actor, p) {
     lock.releaseLock();
   }
   if (t.source === '主管交辦' && p.notify !== false) sendAssignMail_(t, people, '');
-  return api_bootstrap(actor);
+  return bootstrap_(actor);
 }
 
-function api_start(actor, id) {
+function api_start(token, id) {
+  const actor = auth_(token);
   const people = getPeople_();
   const t = mustFindTask_(id);
   checkCanReport_(t, actor, people);
@@ -182,33 +260,36 @@ function api_start(actor, id) {
   t.updatedAt = now;
   writeTask_(t);
   log_(t.id, actor, t.status, t.progress, '開始執行', '網頁');
-  return api_bootstrap(actor);
+  return bootstrap_(actor);
 }
 
-function api_report(actor, id, data) {
+function api_report(token, id, data) {
+  const actor = auth_(token);
   const people = getPeople_();
   const t = mustFindTask_(id);
   checkCanReport_(t, actor, people);
   applyReport_(t, actor, data || {}, '網頁', '', people);
-  return api_bootstrap(actor);
+  return bootstrap_(actor);
 }
 
-function api_reassign(actor, id, newAssignee) {
+function api_reassign(token, id, newAssignee) {
+  const actor = auth_(token);
   const people = getPeople_();
   if (!isManager_(people, actor)) throw new Error('只有主管可以轉派');
   if (!findPerson_(people, newAssignee)) throw new Error('人員表找不到：' + newAssignee);
   const t = mustFindTask_(id);
   const old = t.assignee;
-  if (old === newAssignee) return api_bootstrap(actor);
+  if (old === newAssignee) return bootstrap_(actor);
   t.assignee = newAssignee;
   t.updatedAt = new Date();
   writeTask_(t);
   log_(t.id, actor, t.status, t.progress, '轉派：' + old + ' → ' + newAssignee, '網頁');
   sendAssignMail_(t, people, '此工作由 ' + old + ' 轉派給您。');
-  return api_bootstrap(actor);
+  return bootstrap_(actor);
 }
 
-function api_delete(actor, id) {
+function api_delete(token, id) {
+  const actor = auth_(token);
   const people = getPeople_();
   if (!isManager_(people, actor)) throw new Error('只有主管可以刪除工作');
   const lock = LockService.getScriptLock();
@@ -220,10 +301,11 @@ function api_delete(actor, id) {
   } finally {
     lock.releaseLock();
   }
-  return api_bootstrap(actor);
+  return bootstrap_(actor);
 }
 
-function api_history(actor, id) {
+function api_history(token, id) {
+  const actor = auth_(token);
   const people = getPeople_();
   const t = mustFindTask_(id);
   checkCanReport_(t, actor, people);
@@ -610,13 +692,19 @@ function getConfig_() {
 }
 
 function getPeople_() {
-  return sheet_(SHEET.PEOPLE).getDataRange().getValues().slice(1)
-    .filter(r => String(r[0]).trim())
+  const vals = sheet_(SHEET.PEOPLE).getDataRange().getValues();
+  const head = vals[0].map(h => String(h).trim());
+  const col = n => head.indexOf(n);
+  const get = (r, n) => col(n) >= 0 ? String(r[col(n)] == null ? '' : r[col(n)]).trim() : '';
+  return vals.slice(1)
+    .filter(r => get(r, '姓名'))
     .map(r => ({
-      name: String(r[0]).trim(),
-      role: String(r[1]).trim() === '主管' ? '主管' : '員工',
-      email: String(r[2] || '').trim().toLowerCase(),
-      line: String(r[3] || '').trim()
+      name: get(r, '姓名'),
+      role: get(r, '角色') === '主管' ? '主管' : '員工',
+      email: get(r, 'Email').toLowerCase(),
+      line: get(r, 'LINE名稱'),
+      account: get(r, '帳號'),
+      password: get(r, '密碼')
     }));
 }
 function findPerson_(people, name) { return people.filter(p => p.name === name)[0]; }

@@ -205,6 +205,20 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.login-wrap{min-height:calc(100vh - 60px);display:grid;place-items:center;padding:24px 16px}
+.login{width:100%;max-width:400px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(45,91,227,.12)}
+.login .rainbow{height:6px}
+.login-in{padding:30px 30px 28px}
+.login .brand{margin-bottom:6px}
+.login .lead{color:var(--muted);font-size:14px;margin:0 0 22px}
+.login .field+.field{margin-top:16px}
+.login .btn{width:100%;justify-content:center;margin-top:22px;padding:11px 16px;font-size:15.5px}
+.login .err{margin-top:14px;background:var(--pink-soft);color:#B32F66;border-radius:4px;padding:9px 12px;font-size:14px}
+.login .hint{margin-top:16px;font-size:13px;color:var(--muted);background:var(--purple-soft);border-radius:4px;padding:9px 12px}
+.out{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13.5px;cursor:pointer;color:var(--muted)}
+.out:hover{border-color:#E0508A;color:#C23A72}
+.who-row{display:flex;align-items:center;gap:8px}
+.who{cursor:default}
 
 @media (max-width:860px){
   .topbar-in{padding:14px 16px 0}
@@ -239,7 +253,7 @@ const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['acti
 const IS_DEMO = !(window.google && google.script && google.script.run);
 const S = {
   people:[], projects:[], tasks:[], config:{salutation:'報告',title:'每日工作追蹤'}, today:'',
-  me:null, tab:'mine', modal:null,
+  me:null, token:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部'},
   form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true}
@@ -291,17 +305,24 @@ function personColor(name){ const i=S.people.findIndex(p=>p.name===name); return
 const avatar = name => `<span class="av" style="background:${personColor(name)}">${esc(String(name||'?').slice(0,1))}</span>`;
 
 function api(fn,...args){
+  if(IS_DEMO && fn!=='api_login' && fn!=='api_logout') args[0]=Demo.auth(args[0]);
   if(!IS_DEMO) return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
   try{ return Promise.resolve(JSON.parse(JSON.stringify(Demo[fn](...args)))); }catch(e){ return Promise.reject(e); }
 }
 function run(fn,args,okMsg){
   document.body.classList.add('busy');
-  return api(fn,S.me,...args).then(res=>{
+  return api(fn,S.token,...args).then(res=>{
     document.body.classList.remove('busy');
     applyData(res); S.modal=null; render(); if(okMsg) toast(okMsg);
-  }).catch(err=>{ document.body.classList.remove('busy'); toast((err&&err.message)||String(err),true); });
+  }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
 }
-function applyData(res){ S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
+function onErr(err){
+  const msg=(err&&err.message)||String(err);
+  if(/重新登入/.test(msg)){ logoutLocal(); S.login.err=msg; render(); return; }
+  toast(msg,true);
+}
+function logoutLocal(){ S.token=null; S.me=null; S.tasks=[]; S.modal=null; S.tab='mine'; store('dtt.token',null); }
+function applyData(res){ S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
 let toastTimer;
 function toast(msg,err){
   const el=$('#toast'); el.innerHTML=`<div class="toast ${err?'err':''}">${esc(msg)}</div>`;
@@ -341,7 +362,7 @@ function buildReportText(list){
 
 /* ═════════ 畫面 ═════════ */
 function render(){
-  if(!S.me){ $('#app').innerHTML = topHtml(false)+`<div class="wrap single"><div class="panel"><div class="empty">請先選擇你的名字</div></div></div>`; openPicker(); return; }
+  if(!S.me){ $('#app').innerHTML = loginHtml(); $('#modal').innerHTML=''; const f=$('#lgAcc'); if(f&&!S.login.account) f.focus(); return; }
   const mgr=isMgr(S.me);
   if(!mgr && S.tab!=='mine') S.tab='mine';
   let body;
@@ -351,6 +372,34 @@ function render(){
   $('#app').innerHTML = topHtml(true)+body;
   renderModal();
 }
+
+function loginHtml(){
+  const L=S.login;
+  return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。</div>':''}
+  <div class="login-wrap"><form class="login" data-form="login" autocomplete="on">
+    <div class="rainbow"></div>
+    <div class="login-in">
+      <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
+      <p class="lead">請輸入帳號密碼登入</p>
+      <div class="field"><label for="lgAcc">帳號</label><input class="inp" id="lgAcc" name="username" autocomplete="username" data-bind="login.account" value="${esc(L.account)}"></div>
+      <div class="field"><label for="lgPw">密碼</label><input class="inp" id="lgPw" name="password" type="password" autocomplete="current-password" data-bind="login.password" value="${esc(L.password)}"></div>
+      <button class="btn primary" type="submit">登入</button>
+      ${L.err?`<div class="err">${esc(L.err)}</div>`:''}
+      ${IS_DEMO?'<div class="hint">預覽帳號：主管 n821129x / n821129x；員工 demo / demo</div>':''}
+    </div></form></div>`;
+}
+function doLogin(){
+  const L=S.login;
+  if(!L.account.trim()||!L.password){ L.err='請輸入帳號與密碼'; render(); return; }
+  document.body.classList.add('busy');
+  api('api_login',L.account.trim(),L.password).then(res=>{
+    document.body.classList.remove('busy');
+    S.token=res.token; store('dtt.token',res.token);
+    S.login={account:'',password:'',err:''}; S.tab='mine';
+    applyData(res.data); render();
+  }).catch(err=>{ document.body.classList.remove('busy'); L.password=''; L.err=(err&&err.message)||String(err); render(); });
+}
+document.addEventListener('submit',e=>{ if(e.target.dataset.form==='login'){ e.preventDefault(); doLogin(); } });
 
 function topHtml(withTabs){
   const p=me(); const mgr=p&&p.role==='主管';
@@ -364,7 +413,7 @@ function topHtml(withTabs){
   <header class="topbar"><div class="topbar-in">
     <div class="brand-row">
       <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
-      ${p?`<button class="who" data-act="pickMe" title="切換身分">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></button>`:''}
+      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="logout">登出</button></div>`:''}
     </div>${tabs}
   </div></header>`;
 }
@@ -614,23 +663,18 @@ function statsPage(){
 }
 
 /* ═════════ 視窗 ═════════ */
-function openPicker(){ S.modal={kind:'me'}; renderModal(); }
 function renderModal(){
   const m=S.modal, root=$('#modal');
   if(!m){ root.innerHTML=''; return; }
   const t=m.id?S.tasks.find(x=>x.id===m.id):null;
   const dc=t?projColor(t):(m.color||'#2D5BE3');
   const shell=(title,sub,body,foot,wide)=>`<div class="overlay" data-act="closeModal"><div class="dialog ${wide?'wide':''}" data-act="noop" style="--dc:${dc}">
-    <div class="d-head"><div><h3>${title}</h3>${sub?`<div class="sub">${sub}</div>`:''}</div>${m.kind==='me'&&!S.me?'':'<button class="x" data-act="closeModal">×</button>'}</div>
+    <div class="d-head"><div><h3>${title}</h3>${sub?`<div class="sub">${sub}</div>`:''}</div><button class="x" data-act="closeModal">×</button></div>
     <div class="d-body">${body}</div>${foot?`<div class="d-foot">${foot}</div>`:''}</div></div>`;
   const sub=t?esc((t.project?t.project+'｜':'')+t.content):'';
   const cancel=`<button class="btn" data-act="closeModal">取消</button>`;
   let html='';
-  if(m.kind==='me'){
-    html=shell('你是誰？','選一次就會記住，之後打開自動帶入',
-      `<div class="names">${S.people.map(p=>`<button class="pill ${p.name===S.me?'on':''}" data-act="setMe" data-v="${esc(p.name)}">${avatar(p.name)}${esc(p.name)}<span class="n">${p.role}</span></button>`).join('')}</div>`);
-  }
-  else if(m.kind==='add'){
+  if(m.kind==='add'){
     const mgrs=managers();
     html=shell('新增工作','新增給自己，主管會在團隊總覽看到',`<div class="form-grid">
       <div class="field full"><label>類型</label><div class="pills">${['專案執行','臨時代辦'].map(v=>`<button class="pill ${m.type===v?'on':''}" data-act="addType" data-v="${v}"><span class="dot" style="background:${v==='臨時代辦'?TEMP_COLOR:'#2D5BE3'}"></span>${v}</button>`).join('')}</div></div>
@@ -690,22 +734,16 @@ function renderModal(){
 }
 
 /* ═════════ 動作 ═════════ */
-function loadAs(name){
-  S.me=name; store('dtt.me',name);
-  return api('api_bootstrap',name).then(res=>{ applyData(res); S.modal=null; S.tab='mine'; render(); })
-    .catch(err=>toast((err&&err.message)||String(err),true));
-}
 const A = {
   noop(){},
   tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; render(); window.scrollTo(0,0); },
   f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
   sf(el){ S.sf[el.dataset.k]=el.dataset.v; render(); },
-  pickMe(){ openPicker(); },
-  setMe(el){ loadAs(el.dataset.v); },
-  closeModal(el,e){ if(e.target!==el) return; if(!S.me) return; S.modal=null; renderModal(); },
+  logout(){ const tk=S.token; logoutLocal(); render(); api('api_logout',tk).catch(()=>{}); },
+  closeModal(el,e){ if(e.target!==el) return; S.modal=null; renderModal(); },
   detail(el){
     const id=el.dataset.id; S.modal={kind:'detail',id,history:null}; renderModal();
-    api('api_history',S.me,id).then(h=>{ if(S.modal&&S.modal.id===id){ S.modal.history=h; renderModal(); } }).catch(()=>{ if(S.modal&&S.modal.id===id){ S.modal.history=[]; renderModal(); } });
+    api('api_history',S.token,id).then(h=>{ if(S.modal&&S.modal.id===id){ S.modal.history=h; renderModal(); } }).catch(()=>{ if(S.modal&&S.modal.id===id){ S.modal.history=[]; renderModal(); } });
   },
   start(el){ run('api_start',[el.dataset.id],'已開始計時'); },
   report(el){
@@ -778,6 +816,7 @@ function onBind(e){
   const val=e.target.type==='checkbox'?e.target.checked:e.target.value;
   if(b==='q'){ S.f.q=val; $('#main').innerHTML=mainHtml(); return; }
   const [scope,key]=b.split('.');
+  if(scope==='login'){ S.login[key]=val; return; }
   if(scope==='form') S.form[key]=val;
   if(scope==='m' && S.modal){
     S.modal[key]=val;
@@ -835,12 +874,16 @@ const Demo=(()=>{
   tasks.forEach(t=>log.push({time:t.assignedAt,id:t.id,actor:t.source==='自行新增'?t.assignee:t.owner,status:'未開始',progress:'',content:t.source==='自行新增'?'自行新增':'指派給 '+t.assignee,source:'網頁'}));
   const addLog=(id,actor,status,progress,content)=>log.push({time:fdt(now()),id,actor,status,progress,content,source:'網頁'});
   const role=n=>{ const p=people.find(p=>p.name===n); return p?p.role:''; };
-  const boot=actor=>({people,projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
+  const accounts={'n821129x':['n821129x','正翰'],'demo':['demo','示範員工']};
+  const boot=actor=>({me:role(actor)?actor:'',people,projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
     config:{salutation:'報告正翰',title:'每日工作追蹤'},today:fd(now())});
   const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
   const canTouch=(t,a)=>{ if(t.assignee!==a && role(a)!=='主管') throw new Error('這件工作的承辦人是 '+t.assignee); };
   return {
+    auth(tok){ const n=String(tok||'').replace(/^demo:/,''); if(!role(n)) throw new Error('登入已過期，請重新登入'); return n; },
+    api_login(acc,pw){ const a=accounts[String(acc).toLowerCase()]; if(!a||a[0]!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+a[1],data:boot(a[1])}; },
+    api_logout(){ return true; },
     api_bootstrap:boot,
     api_createTask(actor,p){
       const mgr=role(actor)==='主管'; const assignee=mgr?p.assignee:actor;
@@ -871,15 +914,11 @@ const Demo=(()=>{
 
 /* ═════════ 啟動 ═════════ */
 (function init(){
-  let saved=load('dtt.me');
-  if(!saved && IS_DEMO) saved='示範員工';
-  api('api_bootstrap',saved||'').then(res=>{
-    applyData(res);
-    if(saved && S.people.some(p=>p.name===saved)) S.me=saved; else S.me=null;
-    render();
-  }).catch(err=>{
-    $('#app').innerHTML=`<div class="loading">載入失敗：${esc((err&&err.message)||err)}</div>`;
-  });
+  const saved=load('dtt.token');
+  if(!saved){ render(); return; }
+  S.token=saved;
+  api('api_bootstrap',saved).then(res=>{ applyData(res); render(); })
+    .catch(err=>{ logoutLocal(); const m=(err&&err.message)||String(err); S.login.err=/重新登入/.test(m)?'':m; render(); });
 })();
 </script>
 </body>
