@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>每日工作追蹤</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -205,6 +206,25 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.tbl-wrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:6px}
+table.ppl{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+table.ppl th{background:var(--gray-soft);color:var(--muted);font-weight:600;text-align:left;padding:9px 12px;white-space:nowrap}
+table.ppl td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:middle}
+table.ppl td.nm{display:flex;align-items:center;gap:8px;font-weight:600}
+table.ppl .acts2{display:flex;gap:6px;justify-content:flex-end}
+.muted{color:var(--faint)}
+.imp-box{border:1px dashed var(--purple-line);background:var(--purple-soft);border-radius:6px;padding:16px 18px;margin-top:16px}
+.imp-box h3{margin:0 0 6px;font-size:15.5px;color:var(--purple-ink)}
+.imp-box p{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
+.imp-box code{background:#fff;border-radius:3px;padding:1px 6px;font-size:12.5px;color:var(--ink)}
+.imp-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.errlist{background:var(--pink-soft);color:#A2275C;border-radius:4px;padding:10px 12px;font-size:13.5px;max-height:180px;overflow:auto;margin-bottom:12px}
+.oklist{background:var(--teal-soft);color:#0E6F63;border-radius:4px;padding:10px 12px;font-size:14px;margin-bottom:12px;font-weight:600}
+.prev{overflow:auto;max-height:340px;border:1px solid var(--line);border-radius:4px}
+.prev table{border-collapse:collapse;font-size:13px;width:100%}
+.prev th{position:sticky;top:0;background:var(--gray-soft);color:var(--muted);text-align:left;padding:6px 8px;white-space:nowrap}
+.prev td{padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.prev tr.bad td{background:var(--pink-soft)}
 .login-wrap{min-height:calc(100vh - 60px);display:grid;place-items:center;padding:24px 16px}
 .login{width:100%;max-width:400px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(45,91,227,.12)}
 .login .rainbow{height:6px}
@@ -270,7 +290,7 @@ const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['acti
 const IS_DEMO = !(window.google && google.script && google.script.run);
 const S = {
   people:[], projects:[], tasks:[], config:{salutation:'報告',title:'每日工作追蹤'}, today:'',
-  me:null, token:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
+  me:null, token:null, admin:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部'},
   form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true}
@@ -284,6 +304,7 @@ const ICON = {
   spark:'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2h2v7.6l5.4-5.4 1.4 1.4L14.4 11H22v2h-7.6l5.4 5.4-1.4 1.4-5.4-5.4V22h-2v-7.6l-5.4 5.4-1.4-1.4L9.6 13H2v-2h7.6L4.2 5.6l1.4-1.4L11 9.6z"/></svg>',
   type:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18 9 9l4 6 3-4 4 7z"/><path d="M4 6h16"/></svg>',
   status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M18 4l2 2-2 2"/></svg>',
   src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
 };
 
@@ -388,6 +409,7 @@ function render(){
   let body;
   if(S.tab==='assign') body=`<div class="wrap single"><main id="main">${assignHtml()}</main></div>`;
   else if(S.tab==='stats') body=`<div class="wrap single"><main id="main">${statsPage()}</main></div>`;
+  else if(S.tab==='people') body=`<div class="wrap single"><main id="main">${peoplePage()}</main></div>`;
   else body=`<div class="wrap"><aside class="side">${sideHtml()}</aside><main id="main">${mainHtml()}</main></div>`;
   $('#app').innerHTML = topHtml(true)+body;
   renderModal();
@@ -426,7 +448,7 @@ function topHtml(withTabs){
   const tab=(v,ic,cls,label,extra)=>`<button class="tab ${S.tab===v?'on':''} ${v==='assign'?'accent':''}" data-act="tab" data-v="${v}"><span class="ic ${cls}">${ic}</span>${label}${extra||''}</button>`;
   const tabs = withTabs ? `<nav class="tabs">
       ${tab('mine',ICON.grid,'','我的工作')}
-      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表'):''}
+      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理'):''}
     </nav>` : '<div style="height:18px"></div>';
   return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。部署到 Apps Script 後才會寫入試算表與寄信。</div>':''}
   <div class="rainbow"></div>
@@ -587,12 +609,164 @@ function assignHtml(){
       <label class="check"><input type="checkbox" data-bind="form.notify" ${f.notify?'checked':''}> 寄 Email 通知承辦人</label>
       <button class="btn primary" data-act="submitAssign">送出指派</button>
     </div>
+    <div class="imp-box">
+      <h3>Excel 批次匯入工作</h3>
+      <p>欄位：<code>類型</code> <code>專案名稱</code> <code>工作內容</code> <code>承辦人</code> <code>需完成日期</code>，選填 <code>連結</code> <code>狀態</code> <code>進度</code> <code>最新回報</code> <code>等待對象</code>。日期可寫 2026/11/10 或民國 115/11/10。</p>
+      <div class="imp-acts">
+        <button class="btn" data-act="tpl" data-v="tasks">下載範本</button>
+        <button class="btn purple" data-act="pickFile" data-v="tasks">選擇 Excel 檔匯入</button>
+      </div>
+    </div>
   </section>
   <section class="panel">
     <div class="panel-head"><h2>我最近指派的</h2></div>
     ${recent.length?`<div class="grid" style="margin-top:18px">${recent.map(t=>cardHtml(t,'assign')).join('')}</div>`:'<div class="empty">還沒有指派紀錄</div>'}
   </section>`;
 }
+/* ═════════ 人員管理（主管） ═════════ */
+function loadAdmin(){
+  return api('api_people',S.token).then(list=>{ S.admin=list; if(S.tab==='people') render(); }).catch(onErr);
+}
+function peoplePage(){
+  if(!S.admin){ loadAdmin(); return `<section class="panel"><div class="loading">載入人員中…</div></section>`; }
+  const rows=S.admin.map(p=>`<tr>
+    <td class="nm">${avatar(p.name)}${esc(p.name)}</td>
+    <td><span class="role ${p.role==='主管'?'mgr':''}">${p.role}</span></td>
+    <td>${p.email?esc(p.email):'<span class="muted">未填（收不到通知信）</span>'}</td>
+    <td>${p.line?esc(p.line):'<span class="muted">—</span>'}</td>
+    <td>${p.account?esc(p.account):'<span class="muted">未設定（無法登入）</span>'}</td>
+    <td>${p.hasPassword?'已設定':'<span class="muted">未設定</span>'}</td>
+    <td><div class="acts2"><button class="btn sm" data-act="editPerson" data-v="${esc(p.name)}">編輯</button>${p.name!==S.me?`<button class="btn sm pink" data-act="askDelPerson" data-v="${esc(p.name)}">刪除</button>`:''}</div></td></tr>`).join('');
+  return `<section class="panel">
+    <div class="panel-head"><h2>人員管理</h2><div class="head-acts"><button class="btn purple" data-act="newPerson">＋ 新增人員</button></div></div>
+    <div class="tbl-wrap"><table class="ppl"><thead><tr><th>姓名</th><th>角色</th><th>Email</th><th>LINE 名稱</th><th>帳號</th><th>密碼</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="imp-box">
+      <h3>Excel 批次匯入人員</h3>
+      <p>欄位：<code>姓名</code> <code>角色</code> <code>Email</code> <code>LINE名稱</code> <code>帳號</code> <code>密碼</code>。姓名已存在就更新資料，密碼留空表示不變；角色填「主管」或「員工」。</p>
+      <div class="imp-acts">
+        <button class="btn" data-act="tpl" data-v="people">下載範本</button>
+        <button class="btn purple" data-act="pickFile" data-v="people">選擇 Excel 檔匯入</button>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ═════════ Excel 匯入 ═════════ */
+const IMPORT_SPEC={
+  people:{label:'人員',cols:[
+    ['name','姓名',['姓名','名字']],['role','角色',['角色','職位','權限']],['email','Email',['email','信箱','電子郵件','e-mail','mail']],
+    ['line','LINE名稱',['line名稱','line']],['account','帳號',['帳號','account']],['password','密碼',['密碼','password']]],
+    required:['name'],
+    sample:[['正翰','主管','manager@gmail.com','正翰','zhenghan','1234'],['晏晨','員工','yanchen@gmail.com','晏晨','yanchen','1234']]},
+  tasks:{label:'工作',cols:[
+    ['type','類型',['類型','工作類型']],['project','專案名稱',['專案名稱','專案','案名','案件']],['content','工作內容',['工作內容','代辦內容','待辦內容','內容','工作項目','事項']],
+    ['assignee','承辦人',['承辦人','負責人員','員工','執行人']],['due','需完成日期',['需完成日期','完成日期','期限','到期日','截止日']],
+    ['link','連結',['連結','網址','link']],['status','狀態',['狀態']],['progress','進度',['進度','完成度']],
+    ['latest','最新回報',['最新回報','回報內容','回報','備註']],['waitingFor','等待對象',['等待對象','等待']]],
+    required:['content','assignee','due'],
+    sample:[['專案執行','北市圖資案','追蹤圖資轉檔進度','晏晨','2026/11/10','','等待外部','','叡揚報價單尚未提供','叡揚'],
+            ['臨時代辦','','彙整本週各圖資案作業進度','晏晨','115/11/07','','','','','']]}
+};
+function xlsxReady(){ if(window.XLSX) return true; toast('Excel 元件載入失敗，請重新整理後再試',true); return false; }
+function downloadTemplate(kind){
+  if(!xlsxReady()) return;
+  const spec=IMPORT_SPEC[kind];
+  const ws=XLSX.utils.aoa_to_sheet([spec.cols.map(c=>c[1]),...spec.sample]);
+  ws['!cols']=spec.cols.map(c=>({wch:c[0]==='content'?36:14}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,spec.label);
+  try{ XLSX.writeFile(wb,spec.label+'匯入範本.xlsx'); }
+  catch(e){ toast('瀏覽器不允許下載，請自行建立 Excel，第一列放欄位名稱',true); }
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function normDate(v){
+  if(v===''||v==null) return '';
+  if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*864e5)); return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate()); }
+  if(v instanceof Date) return v.getFullYear()+'-'+pad2(v.getMonth()+1)+'-'+pad2(v.getDate());
+  const nums=String(v).match(/\d+/g)||[];
+  let y,m,d;
+  if(nums.length>=3){ y=+nums[0]; m=+nums[1]; d=+nums[2]; }
+  else if(nums.length===2){ y=+S.today.slice(0,4); m=+nums[0]; d=+nums[1]; }
+  else return '';
+  if(y<1911) y+=1911;
+  if(m<1||m>12||d<1||d>31) return '';
+  return y+'-'+pad2(m)+'-'+pad2(d);
+}
+function parseSheet(kind,buf){
+  const spec=IMPORT_SPEC[kind];
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const norm=x=>String(x).replace(/\s+/g,'').toLowerCase();
+  let hIdx=-1, map=null;
+  for(let i=0;i<Math.min(aoa.length,10);i++){
+    const hdr=aoa[i].map(norm), m={};
+    spec.cols.forEach(c=>{ const j=hdr.findIndex(h=>c[2].map(norm).includes(h)); if(j>=0) m[c[0]]=j; });
+    if(spec.required.every(k=>k in m)){ hIdx=i; map=m; break; }
+  }
+  if(hIdx<0) throw new Error('找不到欄位名稱列，必要欄位：'+spec.required.map(k=>spec.cols.find(c=>c[0]===k)[1]).join('、'));
+  const rows=[];
+  for(let i=hIdx+1;i<aoa.length;i++){
+    const r=aoa[i]; if(!r.some(x=>String(x).trim()!=='')) continue;
+    const o={_row:i+1};
+    spec.cols.forEach(c=>{ if(c[0] in map){ let v=r[map[c[0]]]; o[c[0]]=v==null?'':v; } });
+    Object.keys(o).forEach(k=>{ if(k!=='_row'&&typeof o[k]==='string') o[k]=o[k].trim(); });
+    if(kind==='tasks'){
+      o.due=normDate(o.due);
+      if(o.progress!==''&&o.progress!=null){ const n=parseFloat(String(o.progress).replace('%','')); o.progress=isNaN(n)?'':(n>0&&n<1&&String(o.progress).indexOf('%')<0?Math.round(n*100):Math.max(0,Math.min(100,Math.round(n)))); }
+      o.type=/臨時/.test(String(o.type||''))?'臨時代辦':'專案執行';
+    } else {
+      o.role=/主管|管理/.test(String(o.role||''))?'主管':'員工';
+      if(o.password!=null) o.password=String(o.password);
+      if(o.account!=null) o.account=String(o.account);
+    }
+    o._err=checkRow(kind,o);
+    rows.push(o);
+  }
+  return rows;
+}
+function checkRow(kind,o){
+  const e=[];
+  if(kind==='tasks'){
+    if(!o.content) e.push('工作內容空白');
+    if(!o.assignee) e.push('承辦人空白');
+    else if(!S.people.some(p=>p.name===String(o.assignee))) e.push('人員表沒有「'+o.assignee+'」');
+    if(!o.due) e.push('日期無法辨識');
+  } else {
+    if(!o.name) e.push('姓名空白');
+    if(o.account && !o.password && !(S.admin||[]).some(p=>p.name===o.name&&p.hasPassword)) e.push('有帳號但沒有密碼');
+  }
+  return e.join('、');
+}
+let fileInput=null;
+function pickFile(kind){
+  if(!xlsxReady()) return;
+  if(!fileInput){ fileInput=document.createElement('input'); fileInput.type='file'; fileInput.accept='.xlsx,.xls,.csv'; fileInput.style.display='none'; document.body.appendChild(fileInput); }
+  fileInput.value='';
+  fileInput.onchange=()=>{
+    const f=fileInput.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const rows=parseSheet(kind,new Uint8Array(rd.result));
+        if(!rows.length) return toast('檔案裡沒有資料',true);
+        S.modal={kind:'import',what:kind,rows,file:f.name,notify:false,color:'#8A55D6'}; renderModal();
+      }catch(err){ toast((err&&err.message)||String(err),true); }
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  fileInput.click();
+}
+function importModalBody(m){
+  const spec=IMPORT_SPEC[m.what];
+  const bad=m.rows.filter(r=>r._err).length, good=m.rows.length-bad;
+  const cols=spec.cols.filter(c=>m.rows.some(r=>c[0] in r && r[c[0]]!==''));
+  const show=v=>v==null?'':String(v);
+  return `<div class="${bad?'errlist':'oklist'}">${esc(m.file)}：共 ${m.rows.length} 列，可匯入 <b>${good}</b> 列${bad?`，<b>${bad}</b> 列有問題會略過（粉紅色列）`:''}</div>
+    <div class="prev"><table><thead><tr><th>列</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th>檢查</th></tr></thead>
+    <tbody>${m.rows.slice(0,200).map(r=>`<tr class="${r._err?'bad':''}"><td>${r._row}</td>${cols.map(c=>`<td title="${esc(show(c[0]==='password'&&r[c[0]]?'••••':r[c[0]]))}">${esc(c[0]==='password'&&r[c[0]]?'••••':show(r[c[0]]))}</td>`).join('')}<td>${r._err?esc(r._err):'✓'}</td></tr>`).join('')}</tbody></table></div>
+    ${m.what==='tasks'?`<label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（一般 Gmail 每天約 100 封上限）</label>`:''}`;
+}
+
 function projDatalist(){ return `<datalist id="projList">${S.projects.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>`; }
 
 /* ═════════ 統計圖表（主管） ═════════ */
@@ -730,6 +904,31 @@ function renderModal(){
       ${S.people.map(p=>`<option ${m.to===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`,
       cancel+`<button class="btn primary" data-act="submitReassign">轉派並通知</button>`);
   }
+  else if(m.kind==='import'){
+    const n=m.rows.filter(r=>!r._err).length;
+    html=shell('匯入'+IMPORT_SPEC[m.what].label+'（預覽）','確認內容後再匯入',importModalBody(m),
+      cancel+`<button class="btn primary" data-act="doImport" ${n?'':'disabled'}>匯入 ${n} 列</button>`,true);
+  }
+  else if(m.kind==='importResult'){
+    html=shell('匯入結果','',`<div class="oklist">${esc(m.summary)}</div>${m.errors.length?`<div class="errlist">${m.errors.map(esc).join('<br>')}</div>`:''}`,
+      `<button class="btn primary" data-act="closeModal">完成</button>`,true);
+  }
+  else if(m.kind==='person'){
+    const editing=!!m.original;
+    html=shell(editing?'編輯人員':'新增人員',editing?esc(m.original):'',`<div class="form-grid">
+      <div class="field"><label>姓名</label><input class="inp" data-bind="m.name" value="${esc(m.name)}"></div>
+      <div class="field"><label>角色</label><div class="pills">${['員工','主管'].map(r=>`<button class="pill ${m.role===r?'on':''}" data-act="personRole" data-v="${r}">${r}</button>`).join('')}</div></div>
+      <div class="field"><label>Email<span class="opt">收通知信用</span></label><input class="inp" type="email" data-bind="m.email" value="${esc(m.email)}"></div>
+      <div class="field"><label>LINE 名稱<span class="opt">選填</span></label><input class="inp" data-bind="m.line" value="${esc(m.line)}"></div>
+      <div class="field"><label>帳號</label><input class="inp" data-bind="m.account" value="${esc(m.account)}" autocomplete="off"></div>
+      <div class="field"><label>密碼${editing?'<span class="opt">留空表示不變</span>':''}</label><input class="inp" type="text" data-bind="m.password" value="${esc(m.password)}" autocomplete="off" placeholder="${editing?'輸入新密碼即可重設':'至少 4 個字'}"></div>
+      </div>${editing&&m.original!==m.name?'<div class="note" style="margin-top:14px">改名後，他名下的工作會一起改成新名字。</div>':''}`,
+      cancel+`<button class="btn primary" data-act="savePerson">儲存</button>`);
+  }
+  else if(m.kind==='delPerson'){
+    html=shell('刪除人員？',esc(m.name),`<div class="note" style="background:var(--pink-soft);color:#A2275C">刪除後此人無法登入。若他還有未完成的工作，需要先轉派。</div>`,
+      cancel+`<button class="btn danger" data-act="doDelPerson">確定刪除</button>`);
+  }
   else if(m.kind==='delete'){
     html=shell('刪除工作？',sub,`<div class="note" style="background:var(--pink-soft);color:#A2275C">刪除後無法復原，但回報歷程會保留一筆刪除紀錄。</div>`,
       cancel+`<button class="btn danger" data-act="submitDelete">確定刪除</button>`);
@@ -756,7 +955,7 @@ function renderModal(){
 /* ═════════ 動作 ═════════ */
 const A = {
   noop(){},
-  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; render(); window.scrollTo(0,0); },
+  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; render(); window.scrollTo(0,0); },
   f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
   sf(el){ S.sf[el.dataset.k]=el.dataset.v; render(); },
   logout(){ const tk=S.token; logoutLocal(); render(); api('api_logout',tk).catch(()=>{}); },
@@ -795,6 +994,41 @@ const A = {
   submitReassign(){ run('api_reassign',[S.modal.id,S.modal.to],'已轉派'); },
   askDelete(el){ S.modal={kind:'delete',id:el.dataset.id}; renderModal(); },
   submitDelete(){ run('api_delete',[S.modal.id],'已刪除'); },
+  tpl(el){ downloadTemplate(el.dataset.v); },
+  pickFile(el){ if(el.dataset.v==='people'&&!S.admin){ loadAdmin().then(()=>pickFile('people')); return; } pickFile(el.dataset.v); },
+  doImport(){
+    const m=S.modal, rows=m.rows.filter(r=>!r._err).map(r=>{ const o={...r}; delete o._err; return o; });
+    const fn=m.what==='tasks'?'api_importTasks':'api_importPeople';
+    const args=m.what==='tasks'?[rows,!!m.notify]:[rows];
+    const skipped=m.rows.length-rows.length;
+    document.body.classList.add('busy');
+    api(fn,S.token,...args).then(res=>{
+      document.body.classList.remove('busy');
+      applyData(res.data); if(res.people) S.admin=res.people;
+      const summary=m.what==='tasks'?`已匯入 ${res.added} 件工作`:`新增 ${res.added} 人、更新 ${res.updated} 人`;
+      S.modal={kind:'importResult',summary:summary+(skipped?`；預覽時已略過 ${skipped} 列`:''),errors:res.errors||[]};
+      render();
+    }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  newPerson(){ S.modal={kind:'person',original:'',name:'',role:'員工',email:'',line:'',account:'',password:'',color:'#8A55D6'}; renderModal(); },
+  editPerson(el){ const p=S.admin.find(x=>x.name===el.dataset.v); S.modal={kind:'person',original:p.name,name:p.name,role:p.role,email:p.email,line:p.line,account:p.account,password:'',color:'#8A55D6'}; renderModal(); },
+  personRole(el){ S.modal.role=el.dataset.v; renderModal(); },
+  savePerson(){
+    const m=S.modal;
+    if(!m.name.trim()) return toast('請填姓名',true);
+    if(!m.original && m.account.trim() && !m.password) return toast('有帳號就要設定密碼',true);
+    document.body.classList.add('busy');
+    api('api_savePerson',S.token,{name:m.name.trim(),role:m.role,email:m.email.trim(),line:m.line.trim(),account:m.account.trim(),password:m.password},m.original)
+      .then(res=>{ document.body.classList.remove('busy'); S.admin=res.people; applyData(res.data); S.modal=null; render(); toast('已儲存'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  askDelPerson(el){ S.modal={kind:'delPerson',name:el.dataset.v,color:'#E0508A'}; renderModal(); },
+  doDelPerson(){
+    document.body.classList.add('busy');
+    api('api_deletePerson',S.token,S.modal.name)
+      .then(res=>{ document.body.classList.remove('busy'); S.admin=res.people; applyData(res.data); S.modal=null; render(); toast('已刪除'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
   addTask(){ const mg=managers(); S.modal={kind:'add',color:'#8A55D6',type:'專案執行',project:'',content:'',due:'',link:'',owner:mg[0]?mg[0].name:''}; renderModal(); },
   addType(el){ S.modal.type=el.dataset.v; renderModal(); },
   submitAdd(){
@@ -864,7 +1098,12 @@ const Demo=(()=>{
   const fdt=d=>fd(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
   const now=()=>new Date();
   const day=(n,h=9,m=0)=>{ const d=new Date(); d.setDate(d.getDate()+n); d.setHours(h,m,0,0); return d; };
-  const people=[{name:'正翰',role:'主管',hasEmail:true},{name:'示範員工',role:'員工',hasEmail:true},{name:'晏晨',role:'員工',hasEmail:true},{name:'柏慶',role:'員工',hasEmail:true}];
+  let ppl=[{name:'正翰',role:'主管',email:'manager@example.com',line:'',account:'n821129x',password:'n821129x'},
+    {name:'示範員工',role:'員工',email:'staff@example.com',line:'',account:'demo',password:'demo'},
+    {name:'晏晨',role:'員工',email:'yc@example.com',line:'晏晨',account:'yanchen',password:'1234'},
+    {name:'柏慶',role:'員工',email:'',line:'',account:'',password:''}];
+  const pub=()=>ppl.map(p=>({name:p.name,role:p.role,hasEmail:!!p.email}));
+  const adm=()=>ppl.map(p=>({name:p.name,role:p.role,email:p.email,line:p.line,account:p.account,hasPassword:!!p.password}));
   const mk=(id,o)=>Object.assign({id,type:'專案執行',source:'主管交辦',project:'',content:'',owner:'正翰',assignee:'示範員工',due:fd(day(3)),assignedAt:fdt(day(-5)),startedAt:fdt(day(-4,10,20)),submittedAt:'',doneAt:'',updatedAt:fdt(day(-1)),status:'進行中',progress:'',latest:'',waitingFor:'',link:''},o);
   const done=(o,d)=>Object.assign({status:'完成',startedAt:fdt(day(-d-4,10)),submittedAt:fdt(day(-d,16)),doneAt:fdt(day(-d,17)),assignedAt:fdt(day(-d-5)),due:fd(day(-d+1))},o);
   let tasks=[
@@ -893,17 +1132,34 @@ const Demo=(()=>{
   let log=[]; let seq=tasks.length;
   tasks.forEach(t=>log.push({time:t.assignedAt,id:t.id,actor:t.source==='自行新增'?t.assignee:t.owner,status:'未開始',progress:'',content:t.source==='自行新增'?'自行新增':'指派給 '+t.assignee,source:'網頁'}));
   const addLog=(id,actor,status,progress,content)=>log.push({time:fdt(now()),id,actor,status,progress,content,source:'網頁'});
-  const role=n=>{ const p=people.find(p=>p.name===n); return p?p.role:''; };
-  const accounts={'n821129x':['n821129x','正翰'],'demo':['demo','示範員工']};
-  const boot=actor=>({me:role(actor)?actor:'',people,projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
+  const role=n=>{ const p=ppl.find(p=>p.name===n); return p?p.role:''; };
+  const mustMgr=a=>{ if(role(a)!=='主管') throw new Error('只有主管可以使用此功能'); };
+  const upsert=(p,orig)=>{
+    if(!p.name) throw new Error('姓名不可空白');
+    if(ppl.some(x=>x.name===p.name&&x.name!==orig)) throw new Error('姓名「'+p.name+'」已存在');
+    if(p.account&&ppl.some(x=>x.name!==orig&&x.account&&x.account.toLowerCase()===p.account.toLowerCase())) throw new Error('帳號「'+p.account+'」已被使用');
+    const old=ppl.find(x=>x.name===orig);
+    const rec={name:p.name,role:/主管|管理/.test(p.role||'')?'主管':'員工',email:p.email||'',line:p.line||'',account:p.account||(old?old.account:''),password:p.password||(old?old.password:'')};
+    if(rec.account&&!rec.password) throw new Error('有帳號就要設定密碼');
+    if(old){ Object.assign(old,rec); if(orig!==p.name) tasks.forEach(t=>{ if(t.assignee===orig) t.assignee=p.name; if(t.owner===orig) t.owner=p.name; }); }
+    else ppl.push(rec);
+  };
+  const boot=actor=>({me:role(actor)?actor:'',people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
     config:{salutation:'報告正翰',title:'每日工作追蹤'},today:fd(now())});
   const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
   const canTouch=(t,a)=>{ if(t.assignee!==a && role(a)!=='主管') throw new Error('這件工作的承辦人是 '+t.assignee); };
   return {
     auth(tok){ const n=String(tok||'').replace(/^demo:/,''); if(!role(n)) throw new Error('登入已過期，請重新登入'); return n; },
-    api_login(acc,pw){ const a=accounts[String(acc).toLowerCase()]; if(!a||a[0]!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+a[1],data:boot(a[1])}; },
+    api_login(acc,pw){ const p=ppl.find(x=>x.account&&x.account.toLowerCase()===String(acc).toLowerCase()); if(!p||p.password!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+p.name,data:boot(p.name)}; },
     api_logout(){ return true; },
+    api_people(a){ mustMgr(a); return adm(); },
+    api_savePerson(a,p,orig){ mustMgr(a); upsert(p,orig); return {people:adm(),data:boot(a)}; },
+    api_deletePerson(a,n){ mustMgr(a); if(n===a) throw new Error('不能刪除自己的帳號'); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成').length; if(open) throw new Error(n+' 還有 '+open+' 件未完成的工作，請先轉派'); ppl=ppl.filter(p=>p.name!==n); return {people:adm(),data:boot(a)}; },
+    api_importPeople(a,rows){ mustMgr(a); const r={added:0,updated:0,errors:[]}; rows.forEach(x=>{ try{ const ex=ppl.some(p=>p.name===x.name); upsert(x,ex?x.name:''); ex?r.updated++:r.added++; }catch(e){ r.errors.push('第 '+x._row+' 列：'+e.message); } }); r.people=adm(); r.data=boot(a); return r; },
+    api_importTasks(a,rows){ mustMgr(a); rows.forEach(x=>{ seq++; const id='T'+String(seq).padStart(4,'0'); const st=x.status||'未開始';
+      tasks.push(mk(id,{type:x.type,project:x.project||'',content:x.content,owner:a,assignee:x.assignee,due:x.due,assignedAt:fdt(now()),startedAt:st==='未開始'?'':fdt(now()),status:st,progress:x.progress===''?'':x.progress,latest:x.latest||'',waitingFor:x.waitingFor||'',link:x.link||'',doneAt:st==='完成'?fdt(now()):'',submittedAt:st==='完成'?fdt(now()):''})); });
+      return {added:rows.length,errors:[],data:boot(a)}; },
     api_bootstrap:boot,
     api_createTask(actor,p){
       const mgr=role(actor)==='主管'; const assignee=mgr?p.assignee:actor;

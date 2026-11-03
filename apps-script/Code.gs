@@ -58,8 +58,21 @@ function onOpen() {
     .addToUi();
 }
 
+/** 取得資料試算表：綁定的試算表 → 已記錄的試算表 → 自動建立一份 */
+function ss_() {
+  let ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; }
+  if (ss) return ss;
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 被刪除就重建 */ } }
+  ss = SpreadsheetApp.create('每日工作追蹤資料');
+  props.setProperty('SHEET_ID', ss.getId());
+  return ss;
+}
+
 function setup() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = ss_();
   ss.setSpreadsheetTimeZone(TZ);
   ensureSheet_(ss, SHEET.PEOPLE, PEOPLE_COLS, [ADMIN_ROW, ['範例員工', '員工', '', '', 'staff01', '1234']]);
   ensurePeopleCols_();
@@ -321,6 +334,192 @@ function api_history(token, id) {
       content: String(r[c('內容')]), source: String(r[c('來源')])
     }))
     .reverse();
+}
+
+/* ───────────── 人員管理（主管） ───────────── */
+
+function mustManager_(token) {
+  const actor = auth_(token);
+  if (!isManager_(getPeople_(), actor)) throw new Error('只有主管可以使用此功能');
+  return actor;
+}
+
+function peopleForAdmin_() {
+  return getPeople_().map(p => ({ name: p.name, role: p.role, email: p.email, line: p.line, account: p.account, hasPassword: !!p.password }));
+}
+
+function api_people(token) {
+  mustManager_(token);
+  return peopleForAdmin_();
+}
+
+/** 新增或修改一位人員；original 為修改前姓名（新增時留空）；密碼留空表示不變 */
+function api_savePerson(token, p, original) {
+  const actor = mustManager_(token);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    upsertPerson_(p, original || '', actor);
+  } finally {
+    lock.releaseLock();
+  }
+  return { people: peopleForAdmin_(), data: bootstrap_(actor) };
+}
+
+function api_deletePerson(token, name) {
+  const actor = mustManager_(token);
+  if (name === actor) throw new Error('不能刪除自己的帳號');
+  const people = getPeople_();
+  const target = findPerson_(people, name);
+  if (!target) throw new Error('找不到人員：' + name);
+  if (target.role === '主管' && people.filter(p => p.role === '主管').length <= 1) throw new Error('至少要保留一位主管');
+  const open = readTasks_().filter(t => t.assignee === name && t.status !== '完成').length;
+  if (open) throw new Error(name + ' 還有 ' + open + ' 件未完成的工作，請先轉派');
+  const sh = sheet_(SHEET.PEOPLE);
+  const vals = sh.getDataRange().getValues();
+  const col = vals[0].map(String).indexOf('姓名');
+  for (let i = vals.length - 1; i >= 1; i--) if (String(vals[i][col]).trim() === name) sh.deleteRow(i + 1);
+  return { people: peopleForAdmin_(), data: bootstrap_(actor) };
+}
+
+/** Excel 批次匯入人員：依姓名比對，已存在就更新，不存在就新增 */
+function api_importPeople(token, rows) {
+  const actor = mustManager_(token);
+  const result = { added: 0, updated: 0, errors: [] };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    (rows || []).forEach((r, i) => {
+      try {
+        const exists = !!findPerson_(getPeople_(), String(r.name || '').trim());
+        upsertPerson_(r, exists ? String(r.name).trim() : '', actor, true);
+        if (exists) result.updated++; else result.added++;
+      } catch (e) {
+        result.errors.push('第 ' + (r._row || i + 2) + ' 列：' + e.message);
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  result.people = peopleForAdmin_();
+  result.data = bootstrap_(actor);
+  return result;
+}
+
+function upsertPerson_(p, original, actor, fromImport) {
+  const name = String(p.name || '').trim();
+  const role = /主管|管理/.test(String(p.role || '')) ? '主管' : '員工';
+  const email = String(p.email || '').trim().toLowerCase();
+  const account = String(p.account || '').trim();
+  const password = p.password == null ? '' : String(p.password);
+  if (!name) throw new Error('姓名不可空白');
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Email 格式不正確：' + email);
+  const people = getPeople_();
+  const others = people.filter(x => x.name !== original);
+  if (others.some(x => x.name === name)) throw new Error('姓名「' + name + '」已存在');
+  if (account && others.some(x => x.account && x.account.toLowerCase() === account.toLowerCase())) throw new Error('帳號「' + account + '」已被使用');
+  const old = original ? findPerson_(people, original) : null;
+  if (original && !old) throw new Error('找不到人員：' + original);
+  if (old && original === actor && role !== '主管') throw new Error('不能把自己改成員工');
+  if (account && !password && !(old && old.password)) throw new Error('有帳號就要設定密碼');
+  if (password && password.length < 4) throw new Error('密碼至少 4 個字');
+
+  const sh = sheet_(SHEET.PEOPLE);
+  ensurePeopleCols_();
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const rec = {
+    '姓名': name, '角色': role, 'Email': email,
+    'LINE名稱': p.line == null && old ? old.line : String(p.line || '').trim(),
+    '帳號': fromImport && !account && old ? old.account : account,
+    '密碼': password || (old ? old.password : '')
+  };
+  if (old) {
+    const vals = sh.getDataRange().getValues();
+    const col = head.indexOf('姓名');
+    let row = -1;
+    for (let i = 1; i < vals.length; i++) if (String(vals[i][col]).trim() === original) { row = i + 1; break; }
+    const cur = vals[row - 1];
+    sh.getRange(row, 1, 1, head.length).setValues([head.map((h, i) => (h in rec) ? rec[h] : cur[i])]);
+    if (name !== original) renameInTasks_(original, name);
+  } else {
+    sh.appendRow(head.map(h => (h in rec) ? rec[h] : ''));
+  }
+}
+
+/** 改名時一併更新工作的承辦人／負責人 */
+function renameInTasks_(from, to) {
+  const sh = sheet_(SHEET.TASKS);
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 2) return;
+  const head = vals[0].map(String);
+  [head.indexOf('承辦人'), head.indexOf('負責人')].forEach(c => {
+    if (c < 0) return;
+    const colVals = vals.slice(1).map(r => [String(r[c]).trim() === from ? to : r[c]]);
+    sh.getRange(2, c + 1, colVals.length, 1).setValues(colVals);
+  });
+}
+
+/* ───────────── Excel 批次匯入工作（主管） ───────────── */
+
+function api_importTasks(token, rows, notify) {
+  const actor = mustManager_(token);
+  const people = getPeople_();
+  const result = { added: 0, errors: [] };
+  const valid = [];
+  (rows || []).forEach((r, i) => {
+    const rowNo = r._row || i + 2;
+    const content = String(r.content || '').trim();
+    const assignee = String(r.assignee || '').trim();
+    const due = String(r.due || '').trim();
+    const errs = [];
+    if (!content) errs.push('工作內容空白');
+    if (!assignee) errs.push('承辦人空白');
+    else if (!findPerson_(people, assignee)) errs.push('人員表沒有「' + assignee + '」');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) errs.push('需完成日期格式不正確');
+    const st = r.status ? normStatus_(r.status) : '未開始';
+    if (r.status && !st) errs.push('看不懂狀態「' + r.status + '」');
+    if (errs.length) { result.errors.push('第 ' + rowNo + ' 列：' + errs.join('、')); return; }
+    valid.push({ r: r, content: content, assignee: assignee, due: due, status: st === '待確認' ? '進行中' : st });
+  });
+  if (!valid.length) { result.data = bootstrap_(actor); return result; }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const created = [];
+  try {
+    ensureTaskCols_();
+    const sh = sheet_(SHEET.TASKS);
+    const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    let next = parseInt(nextId_(readTasks_()).slice(1), 10);
+    const now = new Date();
+    const taskRows = [], logRows = [];
+    valid.forEach(v => {
+      const id = 'T' + ('000' + next++).slice(-4);
+      const prog = isNum_(v.r.progress) ? Math.max(0, Math.min(100, Math.round(Number(v.r.progress)))) : '';
+      const started = v.status !== '未開始';
+      const t = {
+        id: id, type: /臨時/.test(String(v.r.type || '')) ? '臨時代辦' : '專案執行', source: '主管交辦',
+        project: String(v.r.project || '').trim(), content: v.content, owner: actor, assignee: v.assignee,
+        due: parseDate_(v.due), assignedAt: now, startedAt: started ? now : '',
+        submittedAt: v.status === '完成' ? now : '', doneAt: v.status === '完成' ? now : '',
+        status: v.status, progress: v.status === '完成' && prog !== '' ? 100 : prog,
+        latest: String(v.r.latest || '').trim(), waitingFor: v.status === '等待外部' ? String(v.r.waitingFor || '').trim() : '',
+        link: String(v.r.link || '').trim(), updatedAt: now
+      };
+      taskRows.push(head.map(h => { const c = TASK_COLS.filter(c => c[1] === h)[0]; return c ? (t[c[0]] == null ? '' : t[c[0]]) : ''; }));
+      logRows.push([now, id, actor, t.status, t.progress, 'Excel 匯入，指派給 ' + t.assignee, 'Excel', '']);
+      created.push(t);
+    });
+    sh.getRange(sh.getLastRow() + 1, 1, taskRows.length, head.length).setValues(taskRows);
+    const log = sheet_(SHEET.LOG);
+    log.getRange(log.getLastRow() + 1, 1, logRows.length, logRows[0].length).setValues(logRows);
+    result.added = created.length;
+  } finally {
+    lock.releaseLock();
+  }
+  if (notify) created.filter(t => t.status !== '完成').forEach(t => { try { sendAssignMail_(t, people, ''); } catch (e) { /* 額度用完就略過 */ } });
+  result.data = bootstrap_(actor);
+  return result;
 }
 
 /* ───────────── 回報邏輯 ───────────── */
@@ -678,13 +877,17 @@ function extractEmail_(s) {
 /* ───────────── 試算表存取 ───────────── */
 
 function sheet_(name) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sh) throw new Error('找不到「' + name + '」分頁，請先執行「代辦系統 → ① 初始化工作表」');
+  let sh = ss_().getSheetByName(name);
+  if (!sh) {                       // 第一次使用自動建立所有分頁
+    setup();
+    sh = ss_().getSheetByName(name);
+  }
+  if (!sh) throw new Error('找不到「' + name + '」分頁');
   return sh;
 }
 
 function getConfig_() {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET.CONFIG);
+  const sh = ss_().getSheetByName(SHEET.CONFIG);
   const out = {};
   if (!sh) return out;
   sh.getDataRange().getValues().slice(1).forEach(r => { if (r[0]) out[String(r[0]).trim()] = r[1]; });
