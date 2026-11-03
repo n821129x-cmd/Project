@@ -18,6 +18,8 @@
 const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報' };
 const REPORT_COLS = ['日期', '姓名', '寄出時間', 'LINE文字', 'AI摘要', '工作數'];
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+const DEFAULT_HEADER = '今日工作進度報告如下：';
+function reportHeader_(cfg) { return String((cfg || getConfig_())['回報開頭'] || DEFAULT_HEADER).trim() || DEFAULT_HEADER; }
 const TZ = 'Asia/Taipei';
 const STATUSES = ['未開始', '進行中', '等待外部', '暫停', '待確認', '完成'];
 const STATUS_ALIAS = {
@@ -39,7 +41,7 @@ const ADMIN_ROW = ['管理者', '主管', '', '', 'n821129x', 'n821129x'];
 const SESSION_DAYS = 14;
 const LOG_COLS = ['時間', 'ID', '回報人', '狀態', '進度', '內容', '來源', '訊息ID'];
 const CONFIG_DEFAULTS = [
-  ['稱謂', '報告正翰', '每日回報第一句的稱謂'],
+  ['回報開頭', '今日工作進度報告如下：', 'LINE 回報文字的第一句'],
   ['系統名稱', '每日工作追蹤', '網頁標題與寄件者名稱'],
   ['系統網址', '', '部署網頁應用程式後貼上，信件中的「開啟系統」按鈕會用到'],
   ['每日摘要時間', 8, '每天幾點寄摘要（0–23），修改後要重新執行「安裝自動排程」'],
@@ -248,7 +250,7 @@ function bootstrap_(actor) {
     isSuper: !!(me && me.super),
     aiEnabled: !!geminiKey_(),
     reportedToday: me ? reportedOn_(me.name, fmt_(new Date(), 'yyyy-MM-dd')) : false,
-    config: { salutation: String(cfg['稱謂'] || '報告'), title: String(cfg['系統名稱'] || '每日工作追蹤') },
+    config: { salutation: reportHeader_(cfg), title: String(cfg['系統名稱'] || '每日工作追蹤') },
     today: fmt_(new Date(), 'yyyy-MM-dd')
   };
 }
@@ -386,7 +388,7 @@ function api_sendDailyReport(token, lineText, aiText) {
   const today = fmt_(new Date(), 'yyyy-MM-dd');
   const tasks = orderTasks_(readTasks_().filter(t => t.assignee === actor &&
     (t.status !== '完成' || (t.doneAt instanceof Date && fmt_(t.doneAt, 'yyyy-MM-dd') === today))));
-  const text = String(lineText || '').trim() || buildReportText_(tasks, String(cfg['稱謂'] || '報告'), today, true);
+  const text = String(lineText || '').trim() || buildReportText_(tasks, reportHeader_(cfg), today, true);
   let ai = me.role === '主管' ? String(aiText || '').trim() : '';   // 員工不能自行撰寫 AI 摘要，一律由系統產生
   if (!ai && geminiKey_()) { try { ai = aiDailyText_(actor); } catch (e) { ai = ''; } }
 
@@ -488,7 +490,7 @@ function settingsView_() {
     hasKey: !!key,
     keyMasked: key ? key.slice(0, 4) + '••••••••' + key.slice(-4) : '',
     model: String(cfg['Gemini模型'] || DEFAULT_MODEL),
-    salutation: String(cfg['稱謂'] || ''),
+    salutation: reportHeader_(cfg),
     title: String(cfg['系統名稱'] || ''),
     reportTo: String(cfg['日報收件人'] || ''),
     digestHour: String(cfg['每日摘要時間'] === '' || cfg['每日摘要時間'] == null ? 8 : cfg['每日摘要時間']),
@@ -510,7 +512,7 @@ function api_saveSettings(token, v) {
   if (v.clearKey) props.deleteProperty('GEMINI_API_KEY');
   else if (String(v.key || '').trim()) props.setProperty('GEMINI_API_KEY', String(v.key).trim());
   if (v.model != null) setConfig_('Gemini模型', String(v.model).trim() || DEFAULT_MODEL);
-  if (v.salutation != null) setConfig_('稱謂', String(v.salutation).trim());
+  if (v.salutation != null) setConfig_('回報開頭', String(v.salutation).trim() || DEFAULT_HEADER);
   if (v.title != null) setConfig_('系統名稱', String(v.title).trim() || '每日工作追蹤');
   if (v.reportTo != null) setConfig_('日報收件人', String(v.reportTo).trim());
   if (v.url != null) setConfig_('系統網址', String(v.url).trim());
@@ -1043,7 +1045,7 @@ function dailyDigest_(force) {
   const tasks = readTasks_();
   const today = fmt_(now, 'yyyy-MM-dd');
   const tomorrow = fmt_(new Date(now.getTime() + 864e5), 'yyyy-MM-dd');
-  const sal = String(cfg['稱謂'] || '報告');
+  const sal = reportHeader_(cfg);
   const name = String(cfg['系統名稱'] || '每日工作追蹤');
   const md = fmt_(now, 'M/d');
   const recentDone = t => t.status === '完成' && t.doneAt instanceof Date && now - t.doneAt < 864e5;
@@ -1104,10 +1106,10 @@ function dailyDigest_(force) {
   managers.forEach(m => GmailApp.sendEmail(m.email, '【團隊摘要】' + md + ' 作業進度', plain, { htmlBody: html, name: name }));
 }
 
-/** 產生「報告正翰，關於今日預計作業事項如下」格式 */
+/** 產生 LINE 回報文字：第一句為「回報開頭」，下面逐項列出 */
 function buildReportText_(tasks, salutation, today, withHeader) {
   const list = orderTasks_(tasks);
-  const lines = withHeader ? [salutation + '，關於今日預計作業事項如下：', ''] : [];
+  const lines = withHeader ? [salutation, ''] : [];
   list.forEach((t, i) => {
     lines.push((i + 1) + '.' + reportLine_(t, today));
     if (t.link) lines.push(String(t.link));
