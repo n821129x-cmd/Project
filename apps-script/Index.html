@@ -206,6 +206,9 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.who-pill{padding:3px 11px 3px 3px}
+.who-pill .av{width:22px;height:22px;font-size:11px}
+.who-pill.zero{opacity:.55}
 .pz-help{margin:10px 0 8px;font-size:14px;color:var(--muted)}
 .pz-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:12px}
 .pz-legend span{display:inline-flex;align-items:center;gap:5px}
@@ -572,13 +575,19 @@ function sideHtml(){
   const pills=(k,opts,counts,dots)=>`<div class="pills">${opts.map(o=>`<button class="pill ${S.f[k]===o?'on':''}" data-act="f" data-k="${k}" data-v="${esc(o)}">${dots&&dots[o]?`<span class="dot" style="background:${dots[o]}"></span>`:''}${esc(o)}${counts?`<span class="n">${counts[o]||0}</span>`:''}</button>`).join('')}</div>`;
   const base=baseList(); const sc={};
   STATUS_FILTERS.forEach(s=>sc[s]=base.filter(t=>matchStatus(t,s)).length);
-  const staff=['全部',...S.people.map(p=>p.name).filter(n=>S.tasks.some(t=>t.assignee===n))];
-  const staffDots={}; staff.forEach(n=>{ if(n!=='全部') staffDots[n]=personColor(n); });
+  /* 承辦人：依人員名單動態產生（新增人員會自動出現），數字套用目前的類型／來源／狀態篩選 */
+  let wl=S.tasks; if(S.f.type!=='全部') wl=wl.filter(t=>t.type===S.f.type); if(S.f.src!=='全部') wl=wl.filter(t=>t.source===S.f.src); wl=wl.filter(t=>matchStatus(t,S.f.status));
+  const wc={}; wl.forEach(t=>{ wc[t.assignee]=(wc[t.assignee]||0)+1; });
+  const ppl=S.people.slice().sort((a,b)=>(a.role==='主管')-(b.role==='主管'));
+  const whoHtml=`<h4>${ICON.team}人員<span class="muted" style="font-weight:400;font-size:12.5px;margin-left:4px">${S.people.length} 人</span></h4><div class="pills">
+    <button class="pill ${S.f.who==='全部'?'on':''}" data-act="f" data-k="who" data-v="全部">全部<span class="n">${wl.length}</span></button>
+    ${ppl.map(p=>`<button class="pill who-pill ${S.f.who===p.name?'on':''} ${wc[p.name]?'':'zero'}" data-act="f" data-k="who" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}${p.role==='主管'?' 👑':''}<span class="n">${wc[p.name]||0}</span></button>`).join('')}</div>`;
   return `<div class="search">${ICON.search}<input data-bind="q" value="${esc(S.f.q)}" placeholder="搜尋工作、專案或人名"></div>
+    ${S.tab==='team'?whoHtml:''}
     <h4>${ICON.type}類型</h4>${pills('type',['全部','專案執行','臨時代辦'],null,{'專案執行':'#2D5BE3','臨時代辦':TEMP_COLOR})}
     <h4>${ICON.status}狀態</h4>${pills('status',STATUS_FILTERS,sc,STATUS_DOT)}
     <h4>${ICON.src}來源</h4>${pills('src',['全部','主管交辦','自行新增'],null,{'主管交辦':'#8A55D6','自行新增':'#E0791F'})}
-    ${S.tab==='team'?`<h4>${ICON.team}承辦人</h4>${pills('who',staff,null,staffDots)}`:''}`;
+`;
 }
 
 function tilesHtml(list){
