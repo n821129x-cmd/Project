@@ -206,6 +206,40 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.vt{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;background:#fff;align-self:center}
+.vt button{border:none;background:#fff;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--muted)}
+.vt button svg{width:16px;height:16px}
+.vt button.on{background:var(--blue);color:#fff}
+.vt button+button{border-left:1px solid var(--line-2)}
+.tl{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.tl-h,.tl-r{display:grid;grid-template-columns:minmax(0,1fr) 110px 120px 110px 96px 236px;gap:14px;align-items:center;padding:10px 14px}
+.tl.nowho .tl-h,.tl.nowho .tl-r{grid-template-columns:minmax(0,1fr) 120px 110px 96px 236px}
+.tl-h{background:var(--gray-soft);color:var(--muted);font-size:12.5px;font-weight:600}
+.tl-r{border-top:1px solid var(--line);cursor:pointer;border-left:4px solid var(--pc);transition:background .12s}
+.tl-r:hover{background:#FAFBFF}
+.tl-title{font-weight:600;margin-top:3px}
+.tl-latest{font-size:13px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.tl-id{font-size:11.5px;color:var(--faint)}
+.tl-who{display:flex;align-items:center;gap:6px;font-size:13.5px}
+.tl-who .av{width:22px;height:22px;font-size:11px}
+.tl-st{display:flex;gap:4px;flex-wrap:wrap}
+.tl-pg{display:flex;align-items:center;gap:6px}
+.tl-pg .bar{flex:1;height:6px}
+.tl-pg small{font-size:12px;color:var(--muted);min-width:30px}
+.tl-due{font-size:13px;display:flex;flex-direction:column}
+.tl-due small{font-size:11.5px;color:var(--muted)}
+.tl-due small.od,.tl-due.od{color:#C23A72;font-weight:600}
+.tl-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+@media (max-width:860px){
+  .vt span{display:none}
+  .who-row{gap:5px} .who-row .lbl{display:none} .who>span:not(.av):not(.role){display:none}
+  .brand{font-size:17px} .who-row .out{padding:5px 9px}
+  .tl-h{display:none}
+  .tl-r,.tl.nowho .tl-r{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}
+  .tl-main{grid-column:1/-1}
+  .tl-who,.tl-st,.tl-pg,.tl-due{font-size:12.5px}
+  .tl-acts{grid-column:1/-1;justify-content:flex-start}
+}
 .mail-steps{margin:14px 0 0;padding-left:20px;font-size:14px;line-height:1.9}
 .mail-prev{margin-top:14px;border:1px solid var(--line);border-radius:6px;max-height:280px;overflow:auto;transform-origin:top left}
 .d-foot a.btn{text-decoration:none}
@@ -373,6 +407,7 @@ const ICON = {
   status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   flower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="2.5"/><path d="M12 6.5a3 3 0 1 1 0-0.1M14.4 8.2a3 3 0 1 1 .1.1M13.5 11.3a3 3 0 1 1 .1-.1M10.5 11.3a3 3 0 1 1-.1-.1M9.6 8.2a3 3 0 1 1-.1.1"/><path d="M12 12v9M12 17c-2-2-4-2-5-1M12 16c2-2 4-2 5-1"/></svg>',
+  rows:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.3"/><circle cx="4" cy="12" r="1.3"/><circle cx="4" cy="18" r="1.3"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M18 4l2 2-2 2"/></svg>',
   src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
 };
@@ -529,7 +564,7 @@ function topHtml(withTabs){
   <header class="topbar"><div class="topbar-in">
     <div class="brand-row">
       <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
-      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="myProfile" title="修改 Email、LINE 名稱、密碼">👤 我的資料</button><button class="out" data-act="logout">登出</button></div>`:''}
+      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="myProfile" title="我的資料：修改 Email、LINE 名稱、密碼">👤<span class="lbl"> 我的資料</span></button><button class="out" data-act="logout">登出</button></div>`:''}
     </div>${tabs}
   </div></header>`;
 }
@@ -608,7 +643,7 @@ function tilesHtml(list){
 function mainHtml(){
   const list=visible(); const mine=S.tab==='mine';
   const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
-    <div class="head-acts">${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:''}</div></div>`;
+    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:''}</div></div>`;
   const tiles=tilesHtml(baseList())+filterNote(list.length);
   if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
   const groups=[];
@@ -620,7 +655,7 @@ function mainHtml(){
   return `<section class="panel">${head}${tiles}${groups.map(g=>`
     <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span>${g.person&&S.aiEnabled?`<button class="btn sm ai" data-act="aiPerson" data-v="${esc(g.k)}" ${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'disabled':''}>${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'<span class="spin"></span> 彙整中':SPARK+' AI 摘要'}</button>`:''}</h3>
     ${g.person&&S.aiPerson[g.k]&&S.aiPerson[g.k].text?`<div class="ai-box person-ai"><div class="ai-tag">${SPARK} AI 摘要</div>${mdHtml(S.aiPerson[g.k].text)}</div>`:''}
-    <div class="grid">${g.items.map(t=>cardHtml(t,S.tab)).join('')}</div>`).join('')}</section>`;
+    ${taskList(g.items,S.tab)}`).join('')}</section>`;
 }
 
 function cardActions(t,view){
@@ -646,6 +681,34 @@ function cardActions(t,view){
   return acts;
 }
 
+/* 卡片／條列 切換（記在瀏覽器） */
+function viewMode(){ return S.view||(S.view=load('dtt.view')==='list'?'list':'card'); }
+function viewToggle(){
+  const v=viewMode();
+  return `<div class="vt" role="group" aria-label="顯示方式"><button class="${v==='card'?'on':''}" data-act="setView" data-v="card" title="卡片">${ICON.grid}<span>卡片</span></button><button class="${v==='list'?'on':''}" data-act="setView" data-v="list" title="條列">${ICON.rows}<span>條列</span></button></div>`;
+}
+function taskList(items,view){
+  if(viewMode()==='card') return `<div class="grid">${items.map(t=>cardHtml(t,view)).join('')}</div>`;
+  const showWho=view!=='mine';
+  return `<div class="tl ${showWho?'':'nowho'}"><div class="tl-h"><span>工作</span>${showWho?'<span>承辦人</span>':''}<span>狀態</span><span>進度</span><span>期限</span><span></span></div>${items.map(t=>rowHtml(t,view,showWho)).join('')}</div>`;
+}
+function rowHtml(t,view,showWho){
+  const od=isOverdue(t), cls=ST_CLASS[t.status]||'todo', pc=projColor(t), prog=hasProg(t);
+  let due='—';
+  if(t.status==='完成') due=md(t.doneAt)+' 完成';
+  else if(t.status==='待確認') due=md(t.submittedAt)+' 提報';
+  else if(t.due){ const d=dayDiff(S.today,t.due); due=md(t.due)+(d>0?`<small>剩 ${d} 天</small>`:(d===0?'<small>今天</small>':`<small class="od">逾期 ${-d} 天</small>`)); }
+  const acts=cardActions(t,view);
+  return `<div class="tl-r" data-act="detail" data-id="${t.id}" style="--pc:${pc}">
+    <div class="tl-main"><div class="tags"><span class="ptag" style="background:${hexA(pc,.12)};color:${pc}">${t.project?esc(t.project):'臨時代辦'}</span>${t.source==='自行新增'?'<span class="stag">自行新增</span>':''}<span class="tl-id">#${t.id}</span></div>
+      <div class="tl-title">${esc(t.content)}</div>${t.latest?`<div class="tl-latest">${esc(t.latest)}${t.status==='等待外部'&&t.waitingFor?'（等待：'+esc(t.waitingFor)+'）':''}</div>`:(t.status==='等待外部'&&t.waitingFor?`<div class="tl-latest">等待：${esc(t.waitingFor)}</div>`:'')}</div>
+    ${showWho?`<div class="tl-who">${avatar(t.assignee)}<span>${esc(t.assignee)}</span></div>`:''}
+    <div class="tl-st"><span class="chip st-${cls}">${t.status}</span>${od?'<span class="chip st-od">逾期</span>':''}${t.notifyDone&&isMgr(S.me)?'<span class="chip st-review" title="提報完成時寄信通知">🔔</span>':''}</div>
+    <div class="tl-pg">${prog?`<div class="bar ${t.status==='完成'||t.status==='待確認'?'done':''}" style="margin:0"><i style="width:${t.progress}%"></i></div><small>${t.progress}%</small>`:'<small class="muted">—</small>'}</div>
+    <div class="tl-due ${od?'od':''}">${due}</div>
+    <div class="tl-acts">${acts.join('')}</div>
+  </div>`;
+}
 function cardHtml(t,view){
   const od=isOverdue(t), prog=hasProg(t), cls=ST_CLASS[t.status]||'todo', pc=projColor(t);
   let big, bigCls=od?'od':cls;
@@ -720,7 +783,7 @@ function assignHtml(){
     </div>
   </section>
   <section class="panel">
-    <div class="panel-head"><h2>我指派的工作</h2></div>
+    <div class="panel-head"><h2>我指派的工作</h2><div class="head-acts">${viewToggle()}</div></div>
     <div class="list-tools">
       <div class="search">${ICON.search}<input data-bind="aq" value="${esc(S.af.q)}" placeholder="搜尋工作、專案、承辦人或編號"></div>
       <div class="pills">${['未完成','待確認','逾期','近7天完成','完成','全部'].map(o=>`<button class="pill ${S.af.status===o?'on':''}" data-act="af" data-v="${o}">${STATUS_DOT[o]?`<span class="dot" style="background:${STATUS_DOT[o]}"></span>`:''}${o}</button>`).join('')}</div>
@@ -746,7 +809,7 @@ function assignListHtml(){
   if(!list.length) return pills+note+'<div class="empty">沒有符合條件的工作</div>';
   const groups=S.people.map(p=>({p,items:orderTasks(list.filter(t=>t.assignee===p.name))})).filter(g=>g.items.length);
   return pills+note+groups.map(g=>`<h3 class="sec-title">${avatar(g.p.name)}${esc(g.p.name)}<span class="cnt">${g.items.length}</span></h3>
-    <div class="grid">${g.items.map(t=>cardHtml(t,'assign')).join('')}</div>`).join('');
+    ${taskList(g.items,'assign')}`).join('');
 }
 /* ═════════ 人員管理（主管） ═════════ */
 function loadAdmin(){
@@ -1693,6 +1756,7 @@ const A = {
   },
   pzClose(){ PZ.sel=null; pzShowCard(null); },
   pzFind(){ const c=PZ.chars[S.me]; if(!c) return; PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  setView(el){ S.view=el.dataset.v; store('dtt.view',S.view); render(); },
   clearSf(){ S.sf={period:'全部',src:'全部',who:''}; render(); },
   tileF(el){ const v=el.dataset.v; S.f.status=(S.f.status===v&&v!=='未完成')?'未完成':v; render(); },
   clearF(){ S.f={...F_DEFAULT}; render(); },
