@@ -206,6 +206,9 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.mail-steps{margin:14px 0 0;padding-left:20px;font-size:14px;line-height:1.9}
+.mail-prev{margin-top:14px;border:1px solid var(--line);border-radius:6px;max-height:280px;overflow:auto;transform-origin:top left}
+.d-foot a.btn{text-decoration:none}
 .who-pill{padding:3px 11px 3px 3px}
 .who-pill .av{width:22px;height:22px;font-size:11px}
 .who-pill.zero{opacity:.55}
@@ -431,7 +434,7 @@ function onErr(err){
   toast(msg,true);
 }
 function logoutLocal(){ S.token=null; S.me=null; S.tasks=[]; S.modal=null; S.tab='mine'; store('dtt.token',null); }
-function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
+function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.myEmail=res.myEmail||''; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
 let toastTimer;
 function toast(msg,err){
   const el=$('#toast'); el.innerHTML=`<div class="toast ${err?'err':''}">${esc(msg)}</div>`;
@@ -1368,6 +1371,20 @@ function settingsPage(){
   </section>`;
 }
 
+/* 複製帶格式的內容（貼到 Gmail 會保留表格） */
+function copyRich(html,plain){
+  let ok=false;
+  const box=document.createElement('div');
+  box.contentEditable='true'; box.style.cssText='position:fixed;left:-9999px;top:0;width:700px';
+  box.innerHTML=html; document.body.appendChild(box);
+  const sel=window.getSelection(), rg=document.createRange();
+  try{ rg.selectNodeContents(box); sel.removeAllRanges(); sel.addRange(rg); ok=document.execCommand('copy'); }catch(e){ ok=false; }
+  sel.removeAllRanges(); box.remove();
+  if(!ok&&navigator.clipboard&&window.ClipboardItem){
+    try{ navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]); ok=true; }catch(e){ ok=false; }
+  }
+  return ok;
+}
 /* ═════════ AI 顯示 ═════════ */
 function mdHtml(text){
   const out=[]; let inList=false;
@@ -1563,6 +1580,16 @@ function renderModal(){
       ${S.people.map(p=>`<option ${m.to===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`,
       cancel+`<button class="btn primary" data-act="submitReassign">轉派並通知</button>`);
   }
+  else if(m.kind==='mailReady'){
+    const r=m.r, mailto='mailto:'+encodeURIComponent(r.to.join(','))+'?subject='+encodeURIComponent(r.subject);
+    html=shell('日報已準備好','從你自己的信箱寄出',`
+      <dl class="kv"><dt>寄件人</dt><dd>${esc(r.myEmail)}（你自己的 Gmail）</dd><dt>收件人</dt><dd>${esc(r.to.join('、'))}</dd><dt>主旨</dt><dd>${esc(r.subject)}</dd></dl>
+      ${r.noMail&&r.noMail.length?`<div class="note" style="margin-top:12px;background:var(--amber-soft);color:var(--amber-ink)">直屬主管 ${esc(r.noMail.join('、'))} 還沒有設定 Email，這次不會收到，請通知管理者補上。</div>`:''}
+      <ol class="mail-steps"><li>按下「複製內容並開啟 Gmail」</li><li>Gmail 撰寫視窗打開後，在<b>內文按 Ctrl+V</b>（手機長按→貼上），表格格式會一起貼上</li><li>確認後按 Gmail 的「傳送」</li></ol>
+      ${m.opened?`<div class="${m.copied?'oklist':'errlist'}" style="margin-top:10px">${m.copied?'✓ 已複製日報內容並開啟 Gmail，到內文貼上就好。沒有跳出視窗的話，請允許瀏覽器開啟彈出視窗後再按一次。':'複製沒有成功，請按「再複製一次」或「複製純文字」後再貼上。'}</div>`:''}
+      <div class="mail-prev">${r.html}</div>`,
+      `<a class="btn left" href="${esc(mailto)}" target="_blank" rel="noopener">用其他郵件程式</a><button class="btn" data-act="copyPlain">複製純文字</button><button class="btn" data-act="copyReport">再複製一次</button><button class="btn primary" data-act="openGmail">📋 複製內容並開啟 Gmail</button>`,true);
+  }
   else if(m.kind==='avatar'){
     html=shell('換造型','選一個喜歡的造型，大家在花園廣場都會看到',pzAvatarBody(m),cancel+`<button class="btn primary" data-act="pzSave">儲存造型</button>`,true);
   }
@@ -1606,8 +1633,11 @@ function renderModal(){
        ${S.aiEnabled?`<textarea class="inp" data-bind="m.ai" style="min-height:110px" placeholder="按「AI 彙整」自動產生；留空的話寄出時會自動產生">${esc(m.ai)}</textarea>`
          :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含回報說明與工作表格。</div>'}`
        :`<div class="note" style="margin-top:14px">寄出後，主管收到的日報會附上工作明細表格${S.aiEnabled?'與系統自動產生的進度摘要':''}。請先在系統上把每件工作的進度更新好再寄出。</div>`}
-       <div class="rep-sec"><span class="n">${isMgr(S.me)?3:2}</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`,
-      `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="sendReport" ${m.sending?'disabled':''}>${m.sending?'<span class="spin"></span> 寄送中…':'寄出日報給主管'}</button>`,true);
+       <div class="rep-sec"><span class="n">${isMgr(S.me)?3:2}</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`+
+      (S.myEmail?`<div class="note" style="margin-top:14px">📮 日報會從<b>你自己的信箱（${esc(S.myEmail)}）</b>寄出：按下按鈕後系統會準備好內容，再打開你的 Gmail 撰寫視窗。</div>`
+        :`<div class="note" style="margin-top:14px;background:var(--pink-soft);color:#A2275C">⚠ 你還沒有設定 Email，無法寄出日報。請先填寫你自己的信箱：</div>
+          <div style="display:flex;gap:8px;margin-top:8px"><input class="inp" type="email" data-bind="m.myEmail" value="${esc(m.myEmail||'')}" placeholder="例：yourname@gmail.com"><button class="btn primary" data-act="saveMyEmail">儲存</button></div>`),
+      `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="sendReport" ${m.sending||!S.myEmail?'disabled':''}>${m.sending?'<span class="spin"></span> 準備中…':'用我的信箱寄出日報'}</button>`,true);
   }
   else if(m.kind==='detail' && t){
     const kv=[['編號','#'+t.id],['類型',t.type],['來源',t.source],['專案',t.project||'—'],['承辦人',t.assignee],['負責主管',t.owner||'—'],['狀態',t.status+(t.waitingFor&&t.status==='等待外部'?'（'+t.waitingFor+'）':'')],
@@ -1745,11 +1775,26 @@ const A = {
       .catch(err=>{ m.aiLoading=false; if(S.modal===m) renderModal(); onErr(err); });
   },
   sendReport(){
-    const m=S.modal; m.sending=true; renderModal();
-    api('api_sendDailyReport',S.token,m.text,m.ai).then(res=>{
-      applyData(res.data); S.modal=null; render(); toast('日報已寄給 '+res.sentTo.join('、'));
-    }).catch(err=>{ m.sending=false; if(S.modal===m) renderModal(); onErr(err); });
+    const m=S.modal; if(!S.myEmail) return toast('請先填寫你的 Email',true);
+    m.sending=true; renderModal();
+    api('api_prepareDailyReport',S.token,m.text,m.ai).then(res=>{
+      applyData(res.data); S.modal={kind:'mailReady',color:'#2D5BE3',r:res}; render();
+    }).catch(err=>{ m.sending=false; if(S.modal===m) renderModal();
+      if(/NEED_EMAIL/.test(errMsg(err))){ S.myEmail=''; renderModal(); return toast('請先填寫你的 Email',true); } onErr(err); });
   },
+  saveMyEmail(){
+    const m=S.modal, e=String(m.myEmail||'').trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Email 格式不正確',true);
+    api('api_updateMyEmail',S.token,e).then(res=>{ applyData(res); renderModal(); toast('已儲存你的 Email'); }).catch(onErr);
+  },
+  openGmail(){
+    const r=S.modal.r, ok=copyRich(r.html,r.plain);
+    const url='https:'+'\/\/mail.google.com/mail/?authuser='+encodeURIComponent(r.myEmail)+'&view=cm&fs=1&to='+encodeURIComponent(r.to.join(','))+'&su='+encodeURIComponent(r.subject);
+    window.open(url,'_blank');
+    S.modal.opened=true; S.modal.copied=ok; renderModal();
+  },
+  copyReport(){ const r=S.modal.r; const ok=copyRich(r.html,r.plain); toast(ok?'已複製日報內容，到信件內文貼上即可':'複製失敗，請改用「純文字」複製',!ok); },
+  copyPlain(){ copyText(S.modal.r.plain,'已複製純文字內容'); },
   aiPerson(el){
     const n=el.dataset.v; S.aiPerson[n]={loading:true,text:(S.aiPerson[n]||{}).text||''}; render();
     api('api_aiPerson',S.token,n).then(txt=>{ S.aiPerson[n]={loading:false,text:txt}; render(); })
@@ -1888,7 +1933,7 @@ const Demo=(()=>{
   };
   const reported={};
   const demoSet={hasKey:true,keyMasked:'AIza••••••••x9Qk',model:'gemini-3.5-flash-lite',salutation:'今日工作進度報告如下：',title:'每日工作追蹤',reportTo:'',digestHour:'8',reminderTime:'23:30',url:''};
-  const boot=actor=>({me:role(actor)?actor:'',isSuper:!!(ppl.find(p=>p.name===actor)||{}).super,aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
+  const boot=actor=>({myEmail:(ppl.find(p=>p.name===actor)||{}).email||'',me:role(actor)?actor:'',isSuper:!!(ppl.find(p=>p.name===actor)||{}).super,aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
     config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'},today:fd(now())});
   const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
@@ -1911,6 +1956,12 @@ const Demo=(()=>{
       ['model','salutation','title','reportTo','url','digestHour','reminderTime'].forEach(k=>{ if(v[k]!=null) demoSet[k]=v[k]; }); return {settings:{...demoSet},data:boot(a)}; },
     api_testAi(a,key){ if(!key&&!demoSet.hasKey) throw new Error('尚未設定金鑰'); return '連線成功（預覽模式）'; },
     api_aiDaily(a){ return '- 完成福國社宅初驗複驗總結會議紀錄確認，已提報主管\n- 建築模組案期末報告持續修正，第三季執委會會議紀錄進度 75%\n- **北市圖資案**仍在等待叡揚報價，已逾期 2 天，可能需要主管協助催辦\n- 明日重點：完成會議紀錄併入報告書、再次追蹤叡揚'; },
+    api_prepareDailyReport(a,text,ai){ const p=ppl.find(x=>x.name===a); if(!p.email) throw new Error('NEED_EMAIL'); reported[a]=true;
+      const sup=String(p.supervisor||'').split('、').map(n=>ppl.find(x=>x.name===n)).filter(Boolean);
+      return {to:(sup.length?sup:ppl.filter(x=>x.role==='主管')).filter(x=>x.email).map(x=>x.email),noMail:sup.filter(x=>!x.email).map(x=>x.name),subject:'【日報】'+a+' 工作回報',
+        html:'<div style="font-family:sans-serif;padding:16px"><h3 style="margin:0 0 8px">'+a+' 工作日報</h3><pre style="white-space:pre-wrap;font-family:inherit">'+esc(text)+'</pre><table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>工作</th><th>狀態</th></tr><tr><td>（預覽示範）</td><td>進行中</td></tr></table></div>',
+        plain:text,myEmail:p.email,data:boot(a)}; },
+    api_updateMyEmail(a,e){ ppl.find(x=>x.name===a).email=e; return boot(a); },
     api_sendDailyReport(a,text,ai){ reported[a]=true; return {sentTo:['manager@example.com'],ai:ai,data:boot(a)}; },
     api_aiPerson(a,n){ mustMgr(a); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成'); return n+' 目前手上有 '+open.length+' 件未完成工作，重點在建築模組案期末報告與北市圖資案。近 7 天回報穩定，'+(open.some(isOverdue)?'但有逾期項目需要注意。':'沒有逾期項目。')+'（預覽模式的示範文字）'; },
     api_aiRange(a,from,to,who){ return '## 整體概況\n'+from+' 至 '+to+' 期間共完成 7 件工作，北市圖資案與建築模組案為主要進度來源。\n## 各員工辦理狀況\n- **示範員工**：完成台北國際PMIS契約寄送；建築模組案期末報告修正中\n- **晏晨**：完成客製化表單對應；造價要項案期初報告 85%\n- **柏慶**：完成新北圖資主契約審核，回報頻率高\n## 風險與卡關\n- 北市圖資案等待叡揚報價已逾期\n- 華江案暫停，需確認發包時程\n## 建議\n- 由主管直接聯繫叡揚確認報價日期\n- 晏晨的臨時交辦已逾期，建議重新排定期限\n\n（預覽模式的示範文字）'; },

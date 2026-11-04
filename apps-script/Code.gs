@@ -250,6 +250,7 @@ function bootstrap_(actor) {
     isSuper: !!(me && me.super),
     aiEnabled: !!geminiKey_(),
     reportedToday: me ? reportedOn_(me.name, fmt_(new Date(), 'yyyy-MM-dd')) : false,
+    myEmail: me ? me.email : '',
     config: { salutation: reportHeader_(cfg), title: String(cfg['系統名稱'] || '每日工作追蹤') },
     today: fmt_(new Date(), 'yyyy-MM-dd')
   };
@@ -391,9 +392,8 @@ function api_aiDaily(token) {
   return aiDailyText_(actor);
 }
 
-/** 寄出日報：回報說明 ＋ AI 摘要 ＋ 工作表格 */
-function api_sendDailyReport(token, lineText, aiText) {
-  const actor = auth_(token);
+/** 組出日報內容（收件人＝直屬主管）；寄出方式由呼叫端決定 */
+function buildDailyReport_(actor, lineText, aiText) {
   const people = getPeople_();
   const me = mustPerson_(people, actor);
   const cfg = getConfig_();
@@ -404,16 +404,16 @@ function api_sendDailyReport(token, lineText, aiText) {
   let ai = me.role === '主管' ? String(aiText || '').trim() : '';   // 員工不能自行撰寫 AI 摘要，一律由系統產生
   if (!ai && geminiKey_()) { try { ai = aiDailyText_(actor); } catch (e) { ai = ''; } }
 
-  // 收件人
   let to = String(cfg['日報收件人'] || '').split(/[,，;；\s]+/).filter(x => /@/.test(x));
-  const sups = supPeople_(people, me).filter(p => p.email && p.name !== actor);
-  if (!to.length && sups.length) to = sups.map(p => p.email);
+  const sups = supPeople_(people, me).filter(p => p.name !== actor);
+  const noMail = sups.filter(p => !p.email).map(p => p.name);
+  if (!to.length && sups.some(p => p.email)) to = sups.filter(p => p.email).map(p => p.email);
   if (!to.length) {
     const owners = tasks.map(t => t.owner).filter((v, i, a) => v && a.indexOf(v) === i)
       .map(n => findPerson_(people, n)).filter(p => p && p.role === '主管' && p.email && p.name !== actor);
     to = (owners.length ? owners : people.filter(p => p.role === '主管' && p.email && p.name !== actor)).map(p => p.email);
   }
-  if (!to.length) throw new Error('找不到收件主管的 Email，請主管到「人員管理」填寫 Email');
+  if (!to.length) throw new Error('主管還沒有設定 Email，無法寄出日報，請通知管理者到「人員管理」補上主管的 Email');
   to = to.filter((v, i, a) => a.indexOf(v) === i);
 
   const md = fmt_(new Date(), 'M/d');
@@ -423,12 +423,41 @@ function api_sendDailyReport(token, lineText, aiText) {
     sectionTitle_(ai ? '3' : '2', '工作明細（' + tasks.length + ' 件）') + taskTableHtml_(tasks, today));
   const plain = '【回報說明】\n' + text + (ai ? '\n\n【AI 進度摘要】\n' + ai : '') + '\n\n【工作明細】\n' +
     tasks.map(t => '#' + t.id + ' ' + lineCore_(t) + '｜' + t.status + (isNum_(t.progress) ? ' ' + t.progress + '%' : '') + '｜期限 ' + dateStr_(t.due)).join('\n');
-  const opt = { htmlBody: html, name: actor + '（' + String(cfg['系統名稱'] || '每日工作追蹤') + '）' };
-  if (me.email) { opt.replyTo = me.email; opt.cc = me.email; }
-  GmailApp.sendEmail(to.join(','), '【日報】' + md + ' ' + actor + ' 工作回報', plain, opt);
+  return { me, to, noMail, html, plain, text, ai, tasks, today, subject: '【日報】' + md + ' ' + actor + ' 工作回報' };
+}
 
-  sheet_(SHEET.REPORTS).appendRow([today, actor, new Date(), text, ai, tasks.length]);
-  return { sentTo: to, ai: ai, data: bootstrap_(actor) };
+/** 準備日報：由員工自己的 Gmail 寄出（系統只準備內容與收件人，並記錄已回報） */
+function api_prepareDailyReport(token, lineText, aiText) {
+  const actor = auth_(token);
+  const me = mustPerson_(getPeople_(), actor);
+  if (!me.email) throw new Error('NEED_EMAIL');
+  const r = buildDailyReport_(actor, lineText, aiText);
+  sheet_(SHEET.REPORTS).appendRow([r.today, actor, new Date(), r.text, r.ai, r.tasks.length]);
+  return { to: r.to, noMail: r.noMail, subject: r.subject, html: r.html, plain: r.plain, myEmail: me.email, data: bootstrap_(actor) };
+}
+
+/** 員工自己補填 Email */
+function api_updateMyEmail(token, email) {
+  const actor = auth_(token);
+  const e = String(email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Email 格式不正確');
+  if (getPeople_().some(p => p.name !== actor && p.email === e)) throw new Error('這個 Email 已經有其他人使用');
+  const sh = sheet_(SHEET.PEOPLE);
+  const vals = sh.getDataRange().getValues();
+  const head = vals[0].map(String), cn = head.indexOf('姓名'), ce = head.indexOf('Email');
+  for (let i = 1; i < vals.length; i++) if (String(vals[i][cn]).trim() === actor) { sh.getRange(i + 1, ce + 1).setValue(e); break; }
+  return bootstrap_(actor);
+}
+
+/** （舊）由系統信箱代寄；保留給主管需要時使用 */
+function api_sendDailyReport(token, lineText, aiText) {
+  const actor = auth_(token);
+  const cfg = getConfig_();
+  const r = buildDailyReport_(actor, lineText, aiText);
+  if (!r.me.email) throw new Error('NEED_EMAIL');
+  GmailApp.sendEmail(r.to.join(','), r.subject, r.plain, { htmlBody: r.html, name: actor + '（' + String(cfg['系統名稱'] || '每日工作追蹤') + '）', replyTo: r.me.email, cc: r.me.email });
+  sheet_(SHEET.REPORTS).appendRow([r.today, actor, new Date(), r.text, r.ai, r.tasks.length]);
+  return { sentTo: r.to, ai: r.ai, data: bootstrap_(actor) };
 }
 
 function reportedOn_(name, day) {
