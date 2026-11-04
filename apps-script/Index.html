@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>每日工作追蹤</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F1F1F3; --panel:#FFFFFF; --line:#E1E1E8; --line-2:#D2D2DC;
+  --ink:#1C1B2E; --muted:#6C6B80; --faint:#9A99AB;
+  --blue:#2D5BE3; --blue-2:#5B97F5; --blue-soft:#ECF1FE;
+  --purple:#8A55D6; --purple-soft:#F6EFFD; --purple-line:#E6D2F8; --purple-badge:#E4C8F8; --purple-ink:#3B1E63;
+  --pink:#E0508A; --pink-soft:#FDEDF4;
+  --teal:#14917F; --teal-soft:#E3F5F1;
+  --orange:#E0791F; --orange-soft:#FDF1E5;
+  --amber:#C98A00; --amber-ink:#8A5E00; --amber-soft:#FFF5D6;
+  --gray-soft:#F2F2F5; --track:#E4E4EC;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Inter,'Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+input,select,textarea{font:inherit;color:var(--ink)}
+.busy button{pointer-events:none;opacity:.6}
+
+/* 頂部 */
+.demo{background:var(--purple-soft);border-bottom:1px solid var(--purple-line);color:var(--purple-ink);font-size:13.5px;text-align:center;padding:7px 16px}
+.rainbow{height:5px;background:linear-gradient(90deg,#2D5BE3 0%,#5B97F5 22%,#8A55D6 45%,#E0508A 68%,#E0791F 86%,#C98A00 100%)}
+.topbar{background:#fff;border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1320px;margin:0 auto;padding:18px 28px 0}
+.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:19px}
+.mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#2D5BE3,#8A55D6 60%,#E0508A);color:#fff;display:grid;place-items:center}
+.who{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 6px 4px 4px;font-size:14px;cursor:pointer}
+.who:hover{border-color:var(--blue-2)}
+.av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:12.5px;font-weight:700;flex:none}
+.role{font-size:12px;padding:2px 9px;border-radius:999px;background:var(--blue-soft);color:var(--blue);font-weight:600}
+.role.mgr{background:var(--purple-badge);color:var(--purple-ink)}
+.tabs{display:flex;gap:12px;margin-top:20px;overflow-x:auto;scrollbar-width:none}
+.tab{display:flex;align-items:center;gap:10px;padding:13px 22px;font-size:16.5px;font-weight:700;background:#fff;border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;cursor:pointer;white-space:nowrap;position:relative;top:1px}
+.tab.on{background:var(--bg)}
+.tab.accent:not(.on){background:var(--purple-soft);border-color:var(--purple-line);box-shadow:0 -3px 16px rgba(138,85,214,.14)}
+.tab svg{width:21px;height:21px}
+.tab .ic{color:var(--blue)} .tab .ic.p{color:var(--purple)} .tab .ic.k{color:var(--pink)} .tab .ic.t{color:var(--teal)}
+.badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px;background:var(--purple-badge);color:var(--purple-ink);letter-spacing:.03em}
+
+/* 版面 */
+.wrap{max-width:1320px;margin:0 auto;padding:30px 28px 60px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:36px;align-items:start}
+.wrap.single{grid-template-columns:minmax(0,1fr)}
+.side .search{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:3px;padding:10px 14px}
+.side .search input{border:none;outline:none;flex:1;background:transparent;min-width:0}
+.side h4{display:flex;align-items:center;gap:8px;margin:24px 0 11px;font-size:16px}
+.side h4 svg{width:18px;height:18px}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 13px;font-size:14.5px;cursor:pointer;line-height:1.4;display:inline-flex;align-items:center;gap:6px}
+.pill:hover{border-color:var(--blue-2)}
+.pill.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.pill .n{color:var(--faint);font-size:12.5px}
+.pill.on .n{color:rgba(255,255,255,.82)}
+.pill .dot{width:8px;height:8px;border-radius:50%}
+.panel{background:#fff;border:1px solid var(--line);border-radius:3px;padding:28px 32px}
+.panel+.panel{margin-top:24px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.panel h2{margin:0;font-size:21px}
+.head-acts{display:flex;gap:10px;flex-wrap:wrap}
+.empty{padding:50px 10px;text-align:center;color:var(--muted)}
+
+/* 彩色統計磚 */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:18px 0 6px}
+.tile{border-radius:6px;padding:12px 14px;border:1px solid transparent}
+.tile .k{font-size:13px;font-weight:600}
+.tile .v{font-size:26px;font-weight:700;line-height:1.2;margin-top:2px;color:var(--ink)}
+.tile .v small{font-size:13px;font-weight:600;color:var(--muted);margin-left:4px}
+.tile.c-blue{background:var(--blue-soft);border-color:#D6E1FC} .tile.c-blue .k{color:var(--blue)}
+.tile.c-purple{background:var(--purple-soft);border-color:var(--purple-line)} .tile.c-purple .k{color:var(--purple)}
+.tile.c-pink{background:var(--pink-soft);border-color:#F8D3E3} .tile.c-pink .k{color:#C23A72}
+.tile.c-teal{background:var(--teal-soft);border-color:#C6EAE2} .tile.c-teal .k{color:#0E7466}
+.tile.c-amber{background:var(--amber-soft);border-color:#F5E2A8} .tile.c-amber .k{color:var(--amber-ink)}
+.tile.c-orange{background:var(--orange-soft);border-color:#F8DCC0} .tile.c-orange .k{color:#B85E10}
+
+.sec-title{font-size:16.5px;margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+.sec-title .sw{width:12px;height:12px;border-radius:3px}
+.sec-title .cnt{font-size:12.5px;color:var(--muted);background:var(--gray-soft);border-radius:999px;padding:1px 9px;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(262px,1fr));gap:16px}
+
+/* 卡片 */
+.card{border:1px solid var(--line);border-radius:4px;background:#fff;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;overflow:hidden;border-top:4px solid var(--pc,#2D5BE3)}
+.card:hover{box-shadow:0 6px 18px rgba(28,27,46,.10);transform:translateY(-1px)}
+.viz{padding:13px 16px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--pct,#F5F8FF),#fff)}
+.viz-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.big{font-size:26px;font-weight:700;letter-spacing:-.01em;color:var(--blue);line-height:1.1}
+.big.todo{color:var(--faint)} .big.done{color:var(--teal)} .big.wait{color:var(--purple)} .big.pause{color:var(--orange)} .big.review{color:var(--amber)} .big.od{color:var(--pink)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.chip{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.st-todo{background:var(--gray-soft);color:var(--muted)}
+.st-doing{background:var(--blue-soft);color:var(--blue)}
+.st-wait{background:var(--purple-soft);color:var(--purple)}
+.st-pause{background:var(--orange-soft);color:#B85E10}
+.st-review{background:var(--amber-soft);color:var(--amber-ink)}
+.st-done{background:var(--teal-soft);color:#0E7466}
+.st-od{background:var(--pink-soft);color:#C23A72}
+.bar{height:8px;border-radius:4px;background:#fff;margin-top:12px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--track)}
+.bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--purple))}
+.bar.done i{background:linear-gradient(90deg,#14917F,#3CC2A8)}
+.tbar{height:3px;background:var(--track);margin-top:9px;border-radius:2px;overflow:hidden}
+.tbar i{display:block;height:100%;background:var(--purple)}
+.tbar.od i{background:var(--pink)} .tbar.done i{background:var(--teal)}
+.viz-sub{font-size:12.5px;color:var(--muted);margin-top:7px;display:flex;justify-content:space-between;gap:8px}
+.viz-sub .od{color:#C23A72;font-weight:600}
+.body{padding:12px 16px 6px;flex:1}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ptag{font-size:12.5px;font-weight:600;padding:1px 9px;border-radius:4px}
+.stag{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:4px;background:var(--orange-soft);color:#B85E10}
+.content{font-weight:600;margin-top:6px}
+.latest{font-size:13.5px;color:var(--muted);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta{font-size:12.5px;color:var(--faint);margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.meta .av{width:20px;height:20px;font-size:10.5px}
+.acts{display:flex;gap:8px;padding:8px 16px 14px;flex-wrap:wrap}
+.wait-note{font-size:12.5px;color:var(--amber-ink);background:var(--amber-soft);border-radius:4px;padding:4px 10px}
+
+/* 按鈕與表單 */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:#fff;border-radius:4px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:14.5px}
+.btn:hover{border-color:var(--blue-2)}
+.btn.sm{padding:5px 12px;font-size:13.5px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:#2450CF}
+.btn.purple{background:var(--purple-soft);border-color:var(--purple-line);color:var(--purple-ink)}
+.btn.teal{background:var(--teal-soft);border-color:#BFE6DF;color:#0E6F63}
+.btn.amber{background:var(--amber-soft);border-color:#F2DC9E;color:var(--amber-ink)}
+.btn.pink{background:var(--pink-soft);border-color:#F6CFE0;color:#B32F66}
+.btn.danger{background:#D63B6F;border-color:#D63B6F;color:#fff}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 22px;margin-top:22px}
+.d-body .form-grid{margin-top:0}
+.full{grid-column:1/-1}
+.field label{display:block;font-weight:600;font-size:14px;margin-bottom:7px}
+.field label .opt{font-weight:400;color:var(--faint);font-size:12.5px;margin-left:6px}
+.inp{width:100%;border:1px solid var(--line-2);border-radius:4px;padding:10px 12px;background:#fff;outline:none}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+textarea.inp{resize:vertical;min-height:84px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
+.form-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:22px;flex-wrap:wrap}
+
+/* 統計圖表 */
+.filters{display:flex;gap:22px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.filters .lbl{font-size:13px;color:var(--muted);font-weight:600;margin-right:4px}
+.fgroup{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:22px}
+.ringbox{border:1px solid var(--line);border-radius:6px;padding:18px;display:flex;gap:18px;align-items:center}
+.ringbox.proj{border-top:4px solid var(--blue)} .ringbox.temp{border-top:4px solid var(--pink)}
+.ring{width:132px;height:132px;flex:none}
+.ring .n{font-size:27px;font-weight:700;fill:var(--ink)}
+.ring .s{font-size:12px;fill:var(--muted)}
+.ringbox h3{margin:0 0 8px;font-size:16px}
+.rlist{font-size:13.5px;color:var(--muted);display:grid;gap:4px}
+.rlist b{color:var(--ink);font-weight:600}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:6px 0 4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.rows{display:grid;gap:12px;margin-top:12px}
+.row{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr) 150px;gap:14px;align-items:center}
+.row .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;min-width:0}
+.row .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.sbar{display:flex;gap:2px;height:16px}
+.sbar i{display:block;min-width:4px}
+.sbar i:first-child{border-radius:4px 0 0 4px} .sbar i:last-child{border-radius:0 4px 4px 0} .sbar i:only-child{border-radius:4px}
+.row .num{font-size:13.5px;color:var(--muted);text-align:right;white-space:nowrap}
+.row .num b{color:var(--ink);font-size:15px}
+.row .num .odn{color:#C23A72;font-weight:600;margin-left:6px}
+details.tbl{margin-top:16px}
+details.tbl summary{cursor:pointer;color:var(--blue);font-size:13.5px;font-weight:600}
+table.data{border-collapse:collapse;width:100%;font-size:13.5px;margin-top:10px}
+table.data th,table.data td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right}
+table.data th:first-child,table.data td:first-child{text-align:left}
+table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
+#tip{position:fixed;pointer-events:none;background:#1C1B2E;color:#fff;font-size:12.5px;padding:6px 10px;border-radius:4px;z-index:70;white-space:nowrap;display:none}
+
+/* 視窗 */
+.overlay{position:fixed;inset:0;background:rgba(28,27,46,.38);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.dialog{background:#fff;border-radius:8px;width:100%;max-width:540px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 50px rgba(28,27,46,.25);border-top:5px solid var(--dc,#2D5BE3)}
+.dialog.wide{max-width:680px}
+.d-head{padding:20px 24px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.d-head h3{margin:0;font-size:18px}
+.d-head .sub{font-size:13px;color:var(--muted);margin-top:3px}
+.x{border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--faint);padding:2px 6px}
+.d-body{padding:18px 24px}
+.d-foot{padding:0 24px 22px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.d-foot .left{margin-right:auto}
+.prog-row{display:flex;align-items:center;gap:14px}
+.prog-row input[type=range]{flex:1;accent-color:var(--blue)}
+.prog-val{font-weight:700;color:var(--blue);min-width:48px;text-align:right}
+.report-text{width:100%;min-height:320px;font-size:14px;line-height:1.75;white-space:pre-wrap}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:8px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-all}
+.hist{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.hist h4{margin:0 0 10px;font-size:14.5px}
+.h-item{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13.5px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.h-item .t{color:var(--faint)}
+.h-item .src{font-size:11.5px;color:var(--purple);background:var(--purple-soft);border-radius:3px;padding:0 6px;margin-left:6px}
+.names{display:flex;flex-wrap:wrap;gap:10px}
+.names .pill{padding:6px 14px 6px 6px;font-size:15px}
+.note{font-size:13.5px;color:var(--muted);background:var(--gray-soft);border-radius:4px;padding:10px 12px;margin-bottom:14px}
+.toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
+.toast.err{background:#D63B6F}
+.loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.pz-help{margin:10px 0 8px;font-size:14px;color:var(--muted)}
+.pz-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:12px}
+.pz-legend span{display:inline-flex;align-items:center;gap:5px}
+.pz-legend i{width:11px;height:13px;border-radius:50% 50% 50% 50%/45% 45% 55% 55%;display:inline-block}
+.pz-legend .pz-tag{background:var(--gray-soft);border-radius:999px;padding:1px 9px}
+.pz-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#8CCB70}
+.pz-wrap canvas{display:block;width:100%;touch-action:none;cursor:pointer;outline:none}
+.pz-loading{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+.pz-card{position:absolute;width:230px;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(28,27,46,.22);padding:10px 12px;font-size:13px;z-index:3}
+.pz-card-h{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.pz-card-h .x{margin-left:auto;font-size:18px}
+.pz-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pz-stats div{background:var(--blue-soft);border-radius:6px;padding:5px 6px;text-align:center;color:var(--muted);font-size:11.5px}
+.pz-stats b{display:block;font-size:17px;color:var(--ink)}
+.pz-stats .od{background:var(--pink-soft)} .pz-stats .rv{background:var(--amber-soft)} .pz-stats .wt{background:var(--purple-soft)} .pz-stats .dn{background:var(--teal-soft)}
+.pz-me{margin-top:8px;display:flex;align-items:center;justify-content:space-between;color:var(--blue);font-weight:600}
+.pz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;margin-top:14px;max-height:52vh;overflow:auto;padding:2px}
+.pz-opt{border:2px solid var(--line);background:linear-gradient(#EAF7E3,#D3EFC6);border-radius:8px;padding:2px 0 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center}
+.pz-opt canvas{width:70px;height:85px}
+.pz-opt span{font-size:11px;color:var(--muted)}
+.pz-opt.on{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-soft)}
+.range-hint{margin-top:12px;font-size:13.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.range-hint b{color:var(--ink)}
+.range-hint .stale{background:var(--amber-soft);color:var(--amber-ink);border-radius:999px;padding:2px 10px;font-weight:600;font-size:12.5px}
+button.tile{font:inherit;text-align:left;cursor:pointer;transition:box-shadow .15s,transform .15s}
+button.tile:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(28,27,46,.08)}
+button.tile.on{box-shadow:0 0 0 2px currentColor inset}
+button.tile.c-blue.on{color:var(--blue)} button.tile.c-purple.on{color:var(--purple)} button.tile.c-amber.on{color:var(--amber)}
+button.tile.c-pink.on{color:var(--pink)} button.tile.c-teal.on{color:var(--teal)}
+button.tile .hint2{font-size:11.5px;color:var(--faint);margin-top:2px}
+.fnote{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--amber-soft);border:1px solid #F2DC9E;color:var(--amber-ink);border-radius:6px;padding:10px 14px;margin:16px 0 0;font-size:14px}
+.fnote .fc{background:#fff;border:1px solid #F2DC9E;border-radius:999px;padding:1px 10px;font-size:13px;font-weight:600}
+.fnote .cnt2{margin-left:auto;font-weight:600}
+.fnote .sub2{flex-basis:100%;font-size:12.5px;color:#9A7A2E}
+.list-tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.list-tools .search{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line-2);border-radius:4px;padding:8px 12px;flex:1;min-width:220px;max-width:420px}
+.list-tools .search input{border:none;outline:none;flex:1;background:transparent;min-width:0}
+.set-sec{border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin-top:18px}
+.set-sec h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+.set-sec .desc{font-size:13.5px;color:var(--muted);margin:0 0 14px}
+.set-sec ol{margin:0 0 14px;padding-left:20px;font-size:13.5px;color:var(--muted);line-height:1.8}
+.set-sec a{color:var(--blue)}
+.key-state{font-size:13px;font-weight:600;padding:2px 10px;border-radius:999px}
+.key-state.on{background:var(--teal-soft);color:#0E7466} .key-state.off{background:var(--pink-soft);color:#C23A72}
+.test-res{margin-top:12px;font-size:14px;border-radius:4px;padding:9px 12px}
+.ai-box{background:linear-gradient(135deg,#F6EFFD,#ECF1FE);border:1px solid var(--purple-line);border-radius:6px;padding:12px 16px;font-size:14.5px;line-height:1.75;color:var(--ink)}
+.ai-box h4{margin:10px 0 4px;font-size:15px;color:var(--purple-ink)} .ai-box h4:first-child{margin-top:0}
+.ai-box ul{margin:4px 0 8px;padding-left:20px} .ai-box p{margin:3px 0}
+.ai-tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--purple);margin-bottom:6px}
+.btn.ai{background:linear-gradient(135deg,#8A55D6,#E0508A);border-color:transparent;color:#fff}
+.btn.ai:hover{filter:brightness(1.05)}
+.sec-title .btn{margin-left:auto}
+.person-ai{margin:-4px 0 14px}
+.sent-chip{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--teal-soft);color:#0E7466;align-self:center}
+.rep-sec{font-weight:700;font-size:14.5px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.rep-sec .n{width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;display:inline-grid;place-items:center}
+.range-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:16px}
+.range-row .field{min-width:150px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+.spin.dark{border-color:var(--purple-line);border-top-color:var(--purple)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tbl-wrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:6px}
+table.ppl{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+table.ppl th{background:var(--gray-soft);color:var(--muted);font-weight:600;text-align:left;padding:9px 12px;white-space:nowrap}
+table.ppl td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:middle}
+table.ppl td.nm{display:flex;align-items:center;gap:8px;font-weight:600}
+table.ppl .acts2{display:flex;gap:6px;justify-content:flex-end}
+.muted{color:var(--faint)}
+.imp-box{border:1px dashed var(--purple-line);background:var(--purple-soft);border-radius:6px;padding:16px 18px;margin-top:16px}
+.imp-box h3{margin:0 0 6px;font-size:15.5px;color:var(--purple-ink)}
+.imp-box p{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
+.imp-box code{background:#fff;border-radius:3px;padding:1px 6px;font-size:12.5px;color:var(--ink)}
+.imp-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.errlist{background:var(--pink-soft);color:#A2275C;border-radius:4px;padding:10px 12px;font-size:13.5px;max-height:180px;overflow:auto;margin-bottom:12px}
+.oklist{background:var(--teal-soft);color:#0E6F63;border-radius:4px;padding:10px 12px;font-size:14px;margin-bottom:12px;font-weight:600}
+.prev{overflow:auto;max-height:340px;border:1px solid var(--line);border-radius:4px}
+.prev table{border-collapse:collapse;font-size:13px;width:100%}
+.prev th{position:sticky;top:0;background:var(--gray-soft);color:var(--muted);text-align:left;padding:6px 8px;white-space:nowrap}
+.prev td{padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.prev tr.bad td{background:var(--pink-soft)}
+.login-wrap{min-height:calc(100vh - 60px);display:grid;place-items:center;padding:24px 16px}
+.login{width:100%;max-width:400px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(45,91,227,.12)}
+.login .rainbow{height:6px}
+.login-in{padding:30px 30px 28px}
+.login .brand{margin-bottom:6px}
+.login .lead{color:var(--muted);font-size:14px;margin:0 0 22px}
+.login .field+.field{margin-top:16px}
+.login .btn{width:100%;justify-content:center;margin-top:22px;padding:11px 16px;font-size:15.5px}
+.login .err{margin-top:14px;background:var(--pink-soft);color:#B32F66;border-radius:4px;padding:9px 12px;font-size:14px}
+.login .hint{margin-top:16px;font-size:13px;color:var(--muted);background:var(--purple-soft);border-radius:4px;padding:9px 12px}
+.out{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13.5px;cursor:pointer;color:var(--muted)}
+.out:hover{border-color:#E0508A;color:#C23A72}
+.who-row{display:flex;align-items:center;gap:8px}
+.who{cursor:default}
+
+@media (max-width:860px){
+  .topbar-in{padding:14px 16px 0}
+  .tab{padding:10px 14px;font-size:14.5px}
+  .tab svg{width:17px;height:17px}
+  .tab .badge{display:none}
+  .wrap{grid-template-columns:minmax(0,1fr);padding:18px 16px 50px;gap:18px}
+  .side h4{margin:14px 0 9px}
+  .panel{padding:20px 16px}
+  .form-grid{grid-template-columns:minmax(0,1fr)}
+  .row{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}
+  .row .sbar{grid-column:1/-1;grid-row:2}
+  .ringbox{flex-direction:column;align-items:flex-start}
+  .toast{right:16px;bottom:16px}
+}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">載入中…</div></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<div id="tip"></div>
+
+<script>
+/* 獨立的錯誤提示：主程式出錯時顯示原因，不要一直停在「載入中」 */
+window.__appStarted=false;
+window.addEventListener('error',function(e){
+  var a=document.getElementById('app');
+  if(a) a.innerHTML='<div class="loading">網頁發生錯誤：'+String(e.message||e).replace(/</g,'&lt;')+(e.lineno?'（第 '+e.lineno+' 行）':'')+'<br>請截圖給系統管理者</div>';
+});
+setTimeout(function(){
+  if(!window.__appStarted){
+    var a=document.getElementById('app');
+    if(a && /載入中/.test(a.textContent)) a.innerHTML='<div class="loading">主程式沒有啟動（可能是程式碼貼上不完整）。<br>請確認 Index.html 有完整貼上，最後一行是 &lt;/html&gt;。</div>';
+  }
+},8000);
+</script>
+<script>
+(function(){
+'use strict';
+window.__appStarted=true;
+/* ═════════ 基本設定 ═════════ */
+const STATUSES = ['未開始','進行中','等待外部','暫停','待確認','完成'];
+const ST_CLASS = {'未開始':'todo','進行中':'doing','等待外部':'wait','暫停':'pause','待確認':'review','完成':'done'};
+const PROJ_COLORS = ['#2D5BE3','#8A55D6','#E0791F','#2B9BD8','#C2399A','#4C9A2A','#5B5FC7','#D0533C','#0E8AA0','#9C6B30'];
+const TEMP_COLOR = '#E0508A';
+const PERSON_COLORS = ['#8A55D6','#2D5BE3','#E0508A','#14917F','#E0791F','#2B9BD8','#C2399A','#4C9A2A'];
+const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['active','執行中','#2D5BE3'],['todo','未開始','#D5D5DF']];
+const IS_DEMO = !(window.google && google.script && google.script.run);
+const S = {
+  people:[], projects:[], tasks:[], config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'}, today:'', af:{q:'',status:'未完成'},
+  me:null, token:null, admin:null, sets:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
+  f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
+  sf:{period:'全部', src:'全部', who:''},
+  form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true, notifyDone:false}
+};
+const ICON = {
+  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>',
+  table:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9.5h18M3 15h18M9 4v16M15 4v16"/></svg>',
+  team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2c3 .2 5.5 2.6 5.5 5.8"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  search:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
+  spark:'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2h2v7.6l5.4-5.4 1.4 1.4L14.4 11H22v2h-7.6l5.4 5.4-1.4 1.4-5.4-5.4V22h-2v-7.6l-5.4 5.4-1.4-1.4L9.6 13H2v-2h7.6L4.2 5.6l1.4-1.4L11 9.6z"/></svg>',
+  type:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18 9 9l4 6 3-4 4 7z"/><path d="M4 6h16"/></svg>',
+  status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  flower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="2.5"/><path d="M12 6.5a3 3 0 1 1 0-0.1M14.4 8.2a3 3 0 1 1 .1.1M13.5 11.3a3 3 0 1 1 .1-.1M10.5 11.3a3 3 0 1 1-.1-.1M9.6 8.2a3 3 0 1 1-.1.1"/><path d="M12 12v9M12 17c-2-2-4-2-5-1M12 16c2-2 4-2 5-1"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M18 4l2 2-2 2"/></svg>',
+  src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
+};
+
+/* ═════════ 工具 ═════════ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function parseT(s){ if(!s) return null; const d=new Date(String(s).split('/').join('-').replace(' ','T')); return isNaN(d)?null:d; }
+function dOnly(s){ const d=parseT(String(s).slice(0,10)+'T00:00'); return d?d.getTime():NaN; }
+function dayDiff(a,b){ return Math.round((dOnly(b)-dOnly(a))/864e5); }
+function md(s){ if(!s) return '—'; const p=String(s).slice(5,10).split('-'); return (+p[0])+'/'+(+p[1]); }
+function elapsed(from,to){
+  const a=parseT(from); if(!a) return '';
+  const b=to?parseT(to):new Date(); const ms=Math.max(0,b-a);
+  const m=Math.floor(ms/6e4); if(m<60) return m+' 分鐘';
+  const h=Math.floor(m/60); if(h<24) return h+' 小時';
+  return Math.floor(h/24)+' 天';
+}
+const hasProg = t => t.progress!=='' && t.progress!=null && !isNaN(t.progress);
+const isOverdue = t => t.status!=='完成' && t.status!=='待確認' && !!t.due && String(t.due).slice(0,10) < S.today;
+const me = () => S.people.find(p=>p.name===S.me);
+const isMgr = name => { const p=S.people.find(p=>p.name===name); return !!p && p.role==='主管'; };
+const managers = () => S.people.filter(p=>p.role==='主管');
+function store(k,v){ try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+
+let projMap={};
+function buildColorMap(){
+  projMap={};
+  const names=[...new Set([...S.projects,...S.tasks.map(t=>t.project)].filter(Boolean))].sort();
+  names.forEach((n,i)=>projMap[n]=PROJ_COLORS[i%PROJ_COLORS.length]);
+}
+const projColor = t => !t.project ? TEMP_COLOR : (projMap[t.project]||PROJ_COLORS[0]);
+const projColorByName = n => projMap[n]||PROJ_COLORS[0];
+function personColor(name){ const i=S.people.findIndex(p=>p.name===name); return PERSON_COLORS[(i<0?0:i)%PERSON_COLORS.length]; }
+const avatar = name => `<span class="av" style="background:${personColor(name)}">${esc(String(name||'?').slice(0,1))}</span>`;
+
+function api(fn,...args){
+  if(IS_DEMO && fn!=='api_login' && fn!=='api_logout') args[0]=Demo.auth(args[0]);
+  if(!IS_DEMO) return new Promise((res,rej)=>{
+    const slow=/^api_(ai|testAi|sendDailyReport|import)/.test(fn);
+    const timer=setTimeout(()=>rej(new Error(slow?'AI 處理時間過長，請稍後再試一次':'伺服器沒有回應，請重新整理再試一次')),slow?120000:30000);
+    google.script.run.withSuccessHandler(r=>{clearTimeout(timer);res(r);}).withFailureHandler(e=>{clearTimeout(timer);rej(e);})[fn](...args);
+  });
+  try{ return Promise.resolve(JSON.parse(JSON.stringify(Demo[fn](...args)))); }catch(e){ return Promise.reject(e); }
+}
+function run(fn,args,okMsg){
+  document.body.classList.add('busy');
+  return api(fn,S.token,...args).then(res=>{
+    document.body.classList.remove('busy');
+    applyData(res); S.modal=null; render(); if(okMsg) toast(okMsg);
+  }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+}
+function errMsg(err){ return String((err&&err.message)||err||'').replace(/^(Uncaught\s+)?(Exception|Error|TypeError)\s*[:：]\s*/,''); }
+function onErr(err){
+  const msg=errMsg(err);
+  if(/重新登入/.test(msg)){ logoutLocal(); S.login.err=msg; render(); return; }
+  toast(msg,true);
+}
+function logoutLocal(){ S.token=null; S.me=null; S.tasks=[]; S.modal=null; S.tab='mine'; store('dtt.token',null); }
+function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
+let toastTimer;
+function toast(msg,err){
+  const el=$('#toast'); el.innerHTML=`<div class="toast ${err?'err':''}">${esc(msg)}</div>`;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.innerHTML='',err?4500:2400);
+}
+
+/* ═════════ 回報文字（與後端同格式） ═════════ */
+function orderTasks(list){
+  const key=t=>t.project?t.project:'\uffff';
+  const first={};
+  list.forEach(t=>{ const k=key(t), tm=(parseT(t.assignedAt)||0)*1; if(first[k]===undefined||tm<first[k]) first[k]=tm; });
+  return list.slice().sort((a,b)=>{
+    const ka=key(a), kb=key(b);
+    if(ka!==kb){ if(ka==='\uffff') return 1; if(kb==='\uffff') return -1; return (first[ka]-first[kb])||(ka<kb?-1:1); }
+    return (parseT(a.assignedAt)||0)-(parseT(b.assignedAt)||0);
+  });
+}
+function reportLine(t){
+  let s=(t.project?t.project+'，':'')+t.content;
+  if(hasProg(t)) s+='('+t.progress+'%)';
+  if(t.latest) s+='；'+String(t.latest).replace(/\s*\n+\s*/g,'，');
+  s=s.replace(/[。．.]+$/,'');
+  const tags=[];
+  if(t.status==='完成') tags.push('已完成');
+  else if(t.status==='待確認') tags.push('已完成，待主管確認');
+  else if(t.status==='等待外部') tags.push('等待外部'+(t.waitingFor?'：'+t.waitingFor:''));
+  else if(t.status==='暫停') tags.push('暫停');
+  if(isOverdue(t)) tags.push('逾期');
+  if(tags.length) s+='（'+tags.join('，')+'）';
+  return s+'。';
+}
+function buildReportText(list){
+  const lines=[S.config.salutation||'今日工作進度報告如下：',''];
+  orderTasks(list).forEach((t,i)=>{ lines.push((i+1)+'.'+reportLine(t)); if(t.link) lines.push(t.link); });
+  return lines.join('\n');
+}
+
+/* ═════════ 畫面 ═════════ */
+function render(){
+  if(!S.me){ $('#app').innerHTML = loginHtml(); $('#modal').innerHTML=''; const f=$('#lgAcc'); if(f&&!S.login.account) f.focus(); return; }
+  const mgr=isMgr(S.me);
+  if(!mgr && S.tab!=='mine' && S.tab!=='plaza') S.tab='mine';
+  let body;
+  if(S.tab==='assign') body=`<div class="wrap single"><main id="main">${assignHtml()}</main></div>`;
+  else if(S.tab==='stats') body=`<div class="wrap single"><main id="main">${statsPage()}</main></div>`;
+  else if(S.tab==='plaza') body=`<div class="wrap single"><main id="main">${plazaHtml()}</main></div>`;
+  else if(S.tab==='settings') body=`<div class="wrap single"><main id="main">${settingsPage()}</main></div>`;
+  else if(S.tab==='people') body=`<div class="wrap single"><main id="main">${peoplePage()}</main></div>`;
+  else body=`<div class="wrap"><aside class="side">${sideHtml()}</aside><main id="main">${mainHtml()}</main></div>`;
+  $('#app').innerHTML = topHtml(true)+body;
+  renderModal();
+  if(S.tab==='plaza') mountPlaza(); else if(PZ.canvas||PZ.raf) unmountPlaza();
+}
+
+function loginHtml(){
+  const L=S.login;
+  return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。</div>':''}
+  <div class="login-wrap"><form class="login" data-form="login" autocomplete="on">
+    <div class="rainbow"></div>
+    <div class="login-in">
+      <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
+      <p class="lead">請輸入帳號密碼登入</p>
+      <div class="field"><label for="lgAcc">帳號</label><input class="inp" id="lgAcc" name="username" autocomplete="username" data-bind="login.account" value="${esc(L.account)}"></div>
+      <div class="field"><label for="lgPw">密碼</label><input class="inp" id="lgPw" name="password" type="password" autocomplete="current-password" data-bind="login.password" value="${esc(L.password)}"></div>
+      <button class="btn primary" type="submit">登入</button>
+      ${L.err?`<div class="err">${esc(L.err)}</div>`:''}
+      ${IS_DEMO?'<div class="hint">預覽帳號：管理者 n821129x / n821129x；主管 lead / lead；員工 demo / demo</div>':''}
+    </div></form></div>`;
+}
+function doLogin(){
+  const L=S.login;
+  if(!L.account.trim()||!L.password){ L.err='請輸入帳號與密碼'; render(); return; }
+  document.body.classList.add('busy');
+  api('api_login',L.account.trim(),L.password).then(res=>{
+    document.body.classList.remove('busy');
+    S.token=res.token; store('dtt.token',res.token);
+    S.login={account:'',password:'',err:''}; S.tab='mine';
+    applyData(res.data); render();
+  }).catch(err=>{ document.body.classList.remove('busy'); L.password=''; L.err=errMsg(err); render(); });
+}
+document.addEventListener('submit',e=>{ if(e.target.dataset.form==='login'){ e.preventDefault(); doLogin(); } });
+
+function topHtml(withTabs){
+  const p=me(); const mgr=p&&p.role==='主管';
+  const tab=(v,ic,cls,label,extra)=>`<button class="tab ${S.tab===v?'on':''} ${v==='assign'?'accent':''}" data-act="tab" data-v="${v}"><span class="ic ${cls}">${ic}</span>${label}${extra||''}</button>`;
+  const tabs = withTabs ? `<nav class="tabs">
+      ${tab('mine',ICON.grid,'','我的工作')}${tab('plaza',ICON.flower,'k','花園廣場')}
+      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理')+(S.isSuper?tab('settings',ICON.gear,'','系統設定'):''):''}
+    </nav>` : '<div style="height:18px"></div>';
+  return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。部署到 Apps Script 後才會寫入試算表與寄信。</div>':''}
+  <div class="rainbow"></div>
+  <header class="topbar"><div class="topbar-in">
+    <div class="brand-row">
+      <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
+      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="logout">登出</button></div>`:''}
+    </div>${tabs}
+  </div></header>`;
+}
+
+function baseList(){
+  let list=S.tasks;
+  if(S.tab==='mine') list=list.filter(t=>t.assignee===S.me);
+  if(S.tab==='team' && S.f.who!=='全部') list=list.filter(t=>t.assignee===S.f.who);
+  if(S.f.type!=='全部') list=list.filter(t=>t.type===S.f.type);
+  if(S.f.src!=='全部') list=list.filter(t=>t.source===S.f.src);
+  return list;
+}
+function matchStatus(t,s){
+  if(s==='全部') return true;
+  if(s==='未完成') return t.status!=='完成';
+  if(s==='逾期') return isOverdue(t);
+  if(s==='近7天完成') return t.status==='完成' && !!t.doneAt && dayDiff(t.doneAt,S.today)<7;
+  return t.status===s;
+}
+const F_DEFAULT={type:'全部',status:'未完成',who:'全部',src:'全部',q:''};
+/* 篩選提示條：有任何非預設條件時顯示 */
+function filterNote(shown){
+  const f=S.f, chips=[];
+  if(f.status!==F_DEFAULT.status) chips.push('狀態：'+f.status);
+  if(f.type!=='全部') chips.push('類型：'+f.type);
+  if(f.src!=='全部') chips.push('來源：'+f.src);
+  if(S.tab==='team'&&f.who!=='全部') chips.push('承辦人：'+f.who);
+  if(f.q.trim()) chips.push('搜尋：「'+f.q.trim()+'」');
+  if(!chips.length) return '';
+  const total=baseList().filter(t=>t.status!=='完成').length;
+  const narrowed=f.type!=='全部'||f.src!=='全部'||(S.tab==='team'&&f.who!=='全部');
+  return `<div class="fnote">🔍 目前已篩選 ${chips.map(c=>`<span class="fc">${esc(c)}</span>`).join('')}
+    <span class="cnt2">顯示 ${shown} 件</span><button class="btn sm amber" data-act="clearF">清除篩選</button>
+    ${narrowed?`<span class="sub2">上方統計數字也已套用類型／來源${S.tab==='team'?'／承辦人':''}篩選</span>`:''}</div>`;
+}
+function visible(){
+  let list=baseList().filter(t=>matchStatus(t,S.f.status));
+  const q=S.f.q.trim().toLowerCase();
+  if(q) list=list.filter(t=>[t.id,t.project,t.content,t.latest,t.assignee,t.waitingFor].join(' ').toLowerCase().includes(q));
+  return list;
+}
+
+const STATUS_FILTERS=['未完成','未開始','進行中','等待外部','暫停','待確認','逾期','近7天完成','完成','全部'];
+const STATUS_DOT={'近7天完成':'#14917F','未開始':'#B8B8C6','進行中':'#2D5BE3','等待外部':'#8A55D6','暫停':'#E0791F','待確認':'#C98A00','逾期':'#E0508A','完成':'#14917F'};
+function sideHtml(){
+  const pills=(k,opts,counts,dots)=>`<div class="pills">${opts.map(o=>`<button class="pill ${S.f[k]===o?'on':''}" data-act="f" data-k="${k}" data-v="${esc(o)}">${dots&&dots[o]?`<span class="dot" style="background:${dots[o]}"></span>`:''}${esc(o)}${counts?`<span class="n">${counts[o]||0}</span>`:''}</button>`).join('')}</div>`;
+  const base=baseList(); const sc={};
+  STATUS_FILTERS.forEach(s=>sc[s]=base.filter(t=>matchStatus(t,s)).length);
+  const staff=['全部',...S.people.map(p=>p.name).filter(n=>S.tasks.some(t=>t.assignee===n))];
+  const staffDots={}; staff.forEach(n=>{ if(n!=='全部') staffDots[n]=personColor(n); });
+  return `<div class="search">${ICON.search}<input data-bind="q" value="${esc(S.f.q)}" placeholder="搜尋工作、專案或人名"></div>
+    <h4>${ICON.type}類型</h4>${pills('type',['全部','專案執行','臨時代辦'],null,{'專案執行':'#2D5BE3','臨時代辦':TEMP_COLOR})}
+    <h4>${ICON.status}狀態</h4>${pills('status',STATUS_FILTERS,sc,STATUS_DOT)}
+    <h4>${ICON.src}來源</h4>${pills('src',['全部','主管交辦','自行新增'],null,{'主管交辦':'#8A55D6','自行新增':'#E0791F'})}
+    ${S.tab==='team'?`<h4>${ICON.team}承辦人</h4>${pills('who',staff,null,staffDots)}`:''}`;
+}
+
+function tilesHtml(list){
+  const open=list.filter(t=>t.status!=='完成');
+  const doneWeek=list.filter(t=>t.status==='完成' && t.doneAt && dayDiff(t.doneAt,S.today)<7).length;
+  const T=(cls,label,v,n)=>`<button class="tile ${cls} ${S.f.status===v?'on':''}" data-act="tileF" data-v="${v}" title="點一下篩選「${label}」"><div class="k">${label}</div><div class="v">${n}</div><div class="hint2">${S.f.status===v?'篩選中・再點一次取消':'點一下篩選'}</div></button>`;
+  return `<div class="tiles">
+    ${T('c-blue','未完成','未完成',open.length)}
+    ${T('c-purple','等待外部','等待外部',open.filter(t=>t.status==='等待外部').length)}
+    ${T('c-amber','待主管確認','待確認',open.filter(t=>t.status==='待確認').length)}
+    ${T('c-pink','逾期','逾期',open.filter(isOverdue).length)}
+    ${T('c-teal','近 7 天完成','近7天完成',doneWeek)}</div>`;
+}
+
+function mainHtml(){
+  const list=visible(); const mine=S.tab==='mine';
+  const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
+    <div class="head-acts">${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:''}</div></div>`;
+  const tiles=tilesHtml(baseList())+filterNote(list.length);
+  if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
+  const groups=[];
+  if(mine){
+    orderTasks(list).forEach(t=>{ const k=t.project||'臨時代辦'; let g=groups.find(g=>g.k===k); if(!g){g={k,items:[],c:projColor(t)};groups.push(g);} g.items.push(t); });
+  } else {
+    S.people.forEach(p=>{ const items=orderTasks(list.filter(t=>t.assignee===p.name)); if(items.length) groups.push({k:p.name,items,person:true}); });
+  }
+  return `<section class="panel">${head}${tiles}${groups.map(g=>`
+    <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span>${g.person&&S.aiEnabled?`<button class="btn sm ai" data-act="aiPerson" data-v="${esc(g.k)}" ${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'disabled':''}>${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'<span class="spin"></span> 彙整中':SPARK+' AI 摘要'}</button>`:''}</h3>
+    ${g.person&&S.aiPerson[g.k]&&S.aiPerson[g.k].text?`<div class="ai-box person-ai"><div class="ai-tag">${SPARK} AI 摘要</div>${mdHtml(S.aiPerson[g.k].text)}</div>`:''}
+    <div class="grid">${g.items.map(t=>cardHtml(t,S.tab)).join('')}</div>`).join('')}</section>`;
+}
+
+function cardActions(t,view){
+  const mine=t.assignee===S.me, mgr=isMgr(S.me), acts=[];
+  if(t.status==='完成') return acts;
+  if(mgr){
+    if(t.status==='待確認'){
+      acts.push(`<button class="btn sm teal" data-act="confirm" data-id="${t.id}">✓ 確認完成</button>`);
+      acts.push(`<button class="btn sm pink" data-act="reject" data-id="${t.id}">退回</button>`);
+    } else {
+      if(mine && t.status==='未開始') acts.push(`<button class="btn sm primary" data-act="start" data-id="${t.id}">▶ 開始</button>`);
+      acts.push(`<button class="btn sm" data-act="report" data-id="${t.id}">回報</button>`);
+      acts.push(`<button class="btn sm teal" data-act="mgrDone" data-id="${t.id}">完成</button>`);
+    }
+    if(view!=='mine') acts.push(`<button class="btn sm purple" data-act="reassign" data-id="${t.id}">轉派</button>`);
+    return acts;
+  }
+  if(!mine) return acts;
+  if(t.status==='待確認') return [`<span class="wait-note">已提報，等待主管確認</span>`];
+  if(t.status==='未開始') acts.push(`<button class="btn sm primary" data-act="start" data-id="${t.id}">▶ 開始</button>`);
+  acts.push(`<button class="btn sm" data-act="report" data-id="${t.id}">回報</button>`);
+  acts.push(`<button class="btn sm amber" data-act="submit" data-id="${t.id}">提報完成</button>`);
+  return acts;
+}
+
+function cardHtml(t,view){
+  const od=isOverdue(t), prog=hasProg(t), cls=ST_CLASS[t.status]||'todo', pc=projColor(t);
+  let big, bigCls=od?'od':cls;
+  if(prog) big=t.progress+'%';
+  else if(t.status==='完成') big='完成';
+  else if(t.status==='待確認') big='待確認';
+  else if(t.status==='未開始') big='待開始';
+  else big=elapsed(t.startedAt)||'—';
+  let runTxt;
+  if(t.status==='未開始') runTxt='指派 '+elapsed(t.assignedAt);
+  else if(t.status==='完成') runTxt='用時 '+(elapsed(t.startedAt||t.assignedAt,t.submittedAt||t.doneAt)||'—');
+  else if(t.status==='待確認') runTxt='用時 '+(elapsed(t.startedAt||t.assignedAt,t.submittedAt)||'—');
+  else runTxt='已進行 '+elapsed(t.startedAt);
+  let remain='';
+  if(t.status==='完成') remain=md(t.doneAt)+' 完成';
+  else if(t.status==='待確認') remain=md(t.submittedAt)+' 提報';
+  else if(t.due){ const d=dayDiff(S.today,t.due); remain = d>0?'剩 '+d+' 天':(d===0?'今天到期':`<span class="od">逾期 ${-d} 天</span>`); }
+  const a=dOnly(t.assignedAt), e=dOnly(t.due)+864e5;
+  const endT=(t.status==='完成'||t.status==='待確認')?((parseT(t.submittedAt||t.doneAt)||new Date()).getTime()):Date.now();
+  const tp = e>a ? Math.max(3,Math.min(100,(endT-a)/(e-a)*100)) : 100;
+  const acts=cardActions(t,view);
+  const done=t.status==='完成'||t.status==='待確認';
+  return `<article class="card" data-act="detail" data-id="${t.id}" style="--pc:${pc};--pct:${hexA(pc,.07)}">
+    <div class="viz">
+      <div class="viz-top"><span class="big ${bigCls}">${esc(big)}</span>
+        <span class="chips">${t.notifyDone&&isMgr(S.me)?'<span class="chip st-review" title="員工提報完成時會寄信通知">🔔</span>':''}<span class="chip st-${cls}">${t.status}</span>${od?'<span class="chip st-od">逾期</span>':''}</span></div>
+      ${prog?`<div class="bar ${done?'done':''}"><i style="width:${t.progress}%"></i></div>`:''}
+      <div class="tbar ${od?'od':''} ${done?'done':''}" title="期限時間消耗"><i style="width:${tp}%"></i></div>
+      <div class="viz-sub"><span>${esc(runTxt)}</span><span>${remain}</span></div>
+    </div>
+    <div class="body">
+      <div class="tags"><span class="ptag" style="background:${hexA(pc,.12)};color:${pc}">${t.project?esc(t.project):'臨時代辦'}</span>${t.source==='自行新增'?'<span class="stag">自行新增</span>':''}</div>
+      <div class="content">${esc(t.content)}</div>
+      ${t.latest?`<div class="latest">${esc(t.latest)}${t.status==='等待外部'&&t.waitingFor?'（等待：'+esc(t.waitingFor)+'）':''}</div>`:(t.status==='等待外部'&&t.waitingFor?`<div class="latest">等待：${esc(t.waitingFor)}</div>`:'')}
+      <div class="meta">${view!=='mine'?avatar(t.assignee)+esc(t.assignee)+' ·':''} #${t.id} · 期限 ${md(t.due)}</div>
+    </div>
+    ${acts.length?`<div class="acts">${acts.join('')}</div>`:''}
+  </article>`;
+}
+
+function assignHtml(){
+  const f=S.form;
+  return `<section class="panel">
+    <div class="panel-head"><h2>指派工作</h2></div>
+    <div class="form-grid">
+      <div class="field full"><label>類型</label><div class="pills">
+        ${['專案執行','臨時代辦'].map(v=>`<button class="pill ${f.type===v?'on':''}" data-act="formType" data-v="${v}"><span class="dot" style="background:${v==='臨時代辦'?TEMP_COLOR:'#2D5BE3'}"></span>${v}</button>`).join('')}</div></div>
+      <div class="field"><label>專案名稱${f.type==='臨時代辦'?'<span class="opt">可留空</span>':''}</label>
+        <input class="inp" list="projList" data-bind="form.project" value="${esc(f.project)}" placeholder="例：北市圖資案">${projDatalist()}</div>
+      <div class="field"><label>承辦人</label>
+        <select class="inp" data-bind="form.assignee"><option value="">請選擇</option>
+        ${S.people.map(p=>`<option ${f.assignee===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="field full"><label>工作內容</label>
+        <textarea class="inp" data-bind="form.content" placeholder="例：確認福國社宅初驗複驗總結會議紀錄與表單內容">${esc(f.content)}</textarea></div>
+      <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="form.due" value="${esc(f.due)}" min="${S.today}"></div>
+      <div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https:\/\/"></div>
+    </div>
+    <div class="form-foot">
+      <div style="display:flex;gap:22px;flex-wrap:wrap">
+        <label class="check"><input type="checkbox" data-bind="form.notify" ${f.notify?'checked':''}> 寄 Email 通知承辦人</label>
+        <label class="check" title="預設不寄；勾選後，員工按「提報完成」時會寄信給您"><input type="checkbox" data-bind="form.notifyDone" ${f.notifyDone?'checked':''}> 🔔 員工提報完成時寄信通知我</label>
+      </div>
+      <button class="btn primary" data-act="submitAssign">送出指派</button>
+    </div>
+    <div class="imp-box">
+      <h3>Excel 批次匯入工作</h3>
+      <p>欄位：<code>類型</code> <code>專案名稱</code> <code>工作內容</code> <code>承辦人</code> <code>需完成日期</code>，選填 <code>連結</code> <code>狀態</code> <code>進度</code> <code>最新回報</code> <code>等待對象</code> <code>完成通知</code>（填「是」＝員工提報完成時寄信通知您）。日期可寫 2026/11/10 或民國 115/11/10。</p>
+      <div class="imp-acts">
+        <button class="btn" data-act="tpl" data-v="tasks">下載範本</button>
+        <button class="btn purple" data-act="pickFile" data-v="tasks">選擇 Excel 檔匯入</button>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>我指派的工作</h2></div>
+    <div class="list-tools">
+      <div class="search">${ICON.search}<input data-bind="aq" value="${esc(S.af.q)}" placeholder="搜尋工作、專案、承辦人或編號"></div>
+      <div class="pills">${['未完成','待確認','逾期','近7天完成','完成','全部'].map(o=>`<button class="pill ${S.af.status===o?'on':''}" data-act="af" data-v="${o}">${STATUS_DOT[o]?`<span class="dot" style="background:${STATUS_DOT[o]}"></span>`:''}${o}</button>`).join('')}</div>
+    </div>
+    <div id="assignList">${assignListHtml()}</div>
+  </section>`;
+}
+function assignListHtml(){
+  const all=S.tasks.filter(t=>t.owner===S.me && t.source==='主管交辦');
+  if(!all.length) return '<div class="empty">還沒有指派紀錄</div>';
+  const q=S.af.q.trim().toLowerCase();
+  let list=all.filter(t=>matchStatus(t,S.af.status));
+  if(q) list=list.filter(t=>[t.id,t.project,t.content,t.latest,t.assignee,t.waitingFor].join(' ').toLowerCase().includes(q));
+  list.sort((a,b)=>(parseT(b.assignedAt)||0)-(parseT(a.assignedAt)||0));
+  const chips=[]; if(S.af.status!=='未完成') chips.push('狀態：'+S.af.status); if(q) chips.push('搜尋：「'+S.af.q.trim()+'」');
+  const note=chips.length?`<div class="fnote">🔍 目前已篩選 ${chips.map(c=>`<span class="fc">${esc(c)}</span>`).join('')}<span class="cnt2">顯示 ${list.length} / ${all.length} 件</span><button class="btn sm amber" data-act="clearAf">清除篩選</button></div>`:'';
+  return note+(list.length?`<div class="grid" style="margin-top:18px">${list.map(t=>cardHtml(t,'assign')).join('')}</div>`:'<div class="empty">沒有符合條件的工作</div>');
+}
+/* ═════════ 人員管理（主管） ═════════ */
+function loadAdmin(){
+  return api('api_people',S.token).then(list=>{ S.admin=list; if(S.tab==='people') render(); }).catch(onErr);
+}
+function peoplePage(){
+  if(!S.admin){ loadAdmin(); return `<section class="panel"><div class="loading">載入人員中…</div></section>`; }
+  const rows=S.admin.map(p=>`<tr>
+    <td class="nm">${avatar(p.name)}${esc(p.name)}</td>
+    <td><span class="role ${p.role==='主管'?'mgr':''}">${p.super?'管理者':p.role}</span></td>
+    <td>${p.role==='主管'?'<span class="muted">—</span>':(p.supervisor?esc(p.supervisor):'<span class="muted">未指定（通知所有主管）</span>')}</td>
+    <td>${p.gender||'<span class="muted">—</span>'}</td>
+    <td>${p.email?esc(p.email):'<span class="muted">未填（收不到通知信）</span>'}</td>
+    <td>${p.line?esc(p.line):'<span class="muted">—</span>'}</td>
+    <td>${p.account?esc(p.account):'<span class="muted">未設定（無法登入）</span>'}</td>
+    <td>${p.hasPassword?'已設定':'<span class="muted">未設定</span>'}</td>
+    <td><div class="acts2">${S.isSuper||p.role!=='主管'||p.name===S.me?`<button class="btn sm" data-act="editPerson" data-v="${esc(p.name)}">編輯</button>`:''}${p.name!==S.me&&!p.super&&(S.isSuper||p.role!=='主管')?`<button class="btn sm pink" data-act="askDelPerson" data-v="${esc(p.name)}">刪除</button>`:''}</div></td></tr>`).join('');
+  return `<section class="panel">
+    <div class="panel-head"><h2>人員管理</h2><div class="head-acts"><button class="btn purple" data-act="newPerson">＋ 新增人員</button></div></div>
+    ${S.isSuper?'<div class="note" style="margin-top:14px">您是管理者：可以設定每個人的<b>角色</b>與<b>直屬主管</b>。員工的日報、提報完成通知、早上的團隊摘要都會寄給他的直屬主管；沒指定的員工會通知所有主管。</div>'
+      :'<div class="note" style="margin-top:14px">角色與直屬主管由<b>管理者</b>設定；您可以維護員工的姓名、Email、帳號密碼。</div>'}
+    <div class="tbl-wrap"><table class="ppl"><thead><tr><th>姓名</th><th>角色</th><th>直屬主管</th><th>性別</th><th>Email</th><th>LINE 名稱</th><th>帳號</th><th>密碼</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="imp-box">
+      <h3>Excel 批次匯入人員</h3>
+      <p>欄位：<code>姓名</code> <code>角色</code> <code>Email</code> <code>LINE名稱</code> <code>帳號</code> <code>密碼</code> <code>性別</code>${S.isSuper?' <code>直屬主管</code>':''}。姓名已存在就更新資料，密碼留空表示不變；${S.isSuper?'角色填「主管」或「員工」。':'角色與直屬主管欄會被略過（由管理者設定）。'}</p>
+      <div class="imp-acts">
+        <button class="btn" data-act="tpl" data-v="people">下載範本</button>
+        <button class="btn purple" data-act="pickFile" data-v="people">選擇 Excel 檔匯入</button>
+      </div>
+    </div>
+  </section>`;
+}
+
+function supArr(v){ return String(v||'').split(/[、,，;；\s]+/).map(x=>x.trim()).filter(Boolean); }
+/* ═════════ Excel 匯入 ═════════ */
+const IMPORT_SPEC={
+  people:{label:'人員',cols:[
+    ['name','姓名',['姓名','名字']],['role','角色',['角色','職位','權限']],['email','Email',['email','信箱','電子郵件','e-mail','mail']],
+    ['line','LINE名稱',['line名稱','line']],['account','帳號',['帳號','account']],['password','密碼',['密碼','password']],
+    ['gender','性別',['性別','gender']],['supervisor','直屬主管',['直屬主管','主管','上司']]],
+    required:['name'],
+    sample:[['正翰','主管','manager@gmail.com','正翰','zhenghan','1234','男',''],['晏晨','員工','yanchen@gmail.com','晏晨','yanchen','1234','女','正翰']]},
+  tasks:{label:'工作',cols:[
+    ['type','類型',['類型','工作類型']],['project','專案名稱',['專案名稱','專案','案名','案件']],['content','工作內容',['工作內容','代辦內容','待辦內容','內容','工作項目','事項']],
+    ['assignee','承辦人',['承辦人','負責人員','員工','執行人']],['due','需完成日期',['需完成日期','完成日期','期限','到期日','截止日']],
+    ['link','連結',['連結','網址','link']],['status','狀態',['狀態']],['progress','進度',['進度','完成度']],
+    ['latest','最新回報',['最新回報','回報內容','回報','備註']],['waitingFor','等待對象',['等待對象','等待']],['notifyDone','完成通知',['完成通知','完成時通知','通知']]],
+    required:['content','assignee','due'],
+    sample:[['專案執行','北市圖資案','追蹤圖資轉檔進度','晏晨','2026/11/10','','等待外部','','叡揚報價單尚未提供','叡揚','是'],
+            ['臨時代辦','','彙整本週各圖資案作業進度','晏晨','115/11/07','','','','','','']]}
+};
+function xlsxReady(){ if(window.XLSX) return true; toast('Excel 元件載入失敗，請重新整理後再試',true); return false; }
+function downloadTemplate(kind){
+  if(!xlsxReady()) return;
+  const spec=IMPORT_SPEC[kind];
+  const ws=XLSX.utils.aoa_to_sheet([spec.cols.map(c=>c[1]),...spec.sample]);
+  ws['!cols']=spec.cols.map(c=>({wch:c[0]==='content'?36:14}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,spec.label);
+  try{ XLSX.writeFile(wb,spec.label+'匯入範本.xlsx'); }
+  catch(e){ toast('瀏覽器不允許下載，請自行建立 Excel，第一列放欄位名稱',true); }
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function normDate(v){
+  if(v===''||v==null) return '';
+  if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*864e5)); return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate()); }
+  if(v instanceof Date) return v.getFullYear()+'-'+pad2(v.getMonth()+1)+'-'+pad2(v.getDate());
+  const nums=String(v).match(/\d+/g)||[];
+  let y,m,d;
+  if(nums.length>=3){ y=+nums[0]; m=+nums[1]; d=+nums[2]; }
+  else if(nums.length===2){ y=+S.today.slice(0,4); m=+nums[0]; d=+nums[1]; }
+  else return '';
+  if(y<1911) y+=1911;
+  if(m<1||m>12||d<1||d>31) return '';
+  return y+'-'+pad2(m)+'-'+pad2(d);
+}
+function parseSheet(kind,buf){
+  const spec=IMPORT_SPEC[kind];
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const norm=x=>String(x).replace(/\s+/g,'').toLowerCase();
+  let hIdx=-1, map=null;
+  for(let i=0;i<Math.min(aoa.length,10);i++){
+    const hdr=aoa[i].map(norm), m={};
+    spec.cols.forEach(c=>{ const j=hdr.findIndex(h=>c[2].map(norm).includes(h)); if(j>=0) m[c[0]]=j; });
+    if(spec.required.every(k=>k in m)){ hIdx=i; map=m; break; }
+  }
+  if(hIdx<0) throw new Error('找不到欄位名稱列，必要欄位：'+spec.required.map(k=>spec.cols.find(c=>c[0]===k)[1]).join('、'));
+  const rows=[];
+  for(let i=hIdx+1;i<aoa.length;i++){
+    const r=aoa[i]; if(!r.some(x=>String(x).trim()!=='')) continue;
+    const o={_row:i+1};
+    spec.cols.forEach(c=>{ if(c[0] in map){ let v=r[map[c[0]]]; o[c[0]]=v==null?'':v; } });
+    Object.keys(o).forEach(k=>{ if(k!=='_row'&&typeof o[k]==='string') o[k]=o[k].trim(); });
+    if(kind==='tasks'){
+      o.due=normDate(o.due);
+      if(o.progress!==''&&o.progress!=null){ const n=parseFloat(String(o.progress).replace('%','')); o.progress=isNaN(n)?'':(n>0&&n<1&&String(o.progress).indexOf('%')<0?Math.round(n*100):Math.max(0,Math.min(100,Math.round(n)))); }
+      o.type=/臨時/.test(String(o.type||''))?'臨時代辦':'專案執行';
+    } else {
+      o.role=/主管|管理/.test(String(o.role||''))?'主管':'員工';
+      if(o.password!=null) o.password=String(o.password);
+      if(o.account!=null) o.account=String(o.account);
+    }
+    o._err=checkRow(kind,o);
+    rows.push(o);
+  }
+  return rows;
+}
+function checkRow(kind,o){
+  const e=[];
+  if(kind==='tasks'){
+    if(!o.content) e.push('工作內容空白');
+    if(!o.assignee) e.push('承辦人空白');
+    else if(!S.people.some(p=>p.name===String(o.assignee))) e.push('人員表沒有「'+o.assignee+'」');
+    if(!o.due) e.push('日期無法辨識');
+  } else {
+    if(!o.name) e.push('姓名空白');
+    if(o.account && !o.password && !(S.admin||[]).some(p=>p.name===o.name&&p.hasPassword)) e.push('有帳號但沒有密碼');
+  }
+  return e.join('、');
+}
+let fileInput=null;
+function pickFile(kind){
+  if(!xlsxReady()) return;
+  if(!fileInput){ fileInput=document.createElement('input'); fileInput.type='file'; fileInput.accept='.xlsx,.xls,.csv'; fileInput.style.display='none'; document.body.appendChild(fileInput); }
+  fileInput.value='';
+  fileInput.onchange=()=>{
+    const f=fileInput.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const rows=parseSheet(kind,new Uint8Array(rd.result));
+        if(!rows.length) return toast('檔案裡沒有資料',true);
+        S.modal={kind:'import',what:kind,rows,file:f.name,notify:false,color:'#8A55D6'}; renderModal();
+      }catch(err){ toast(errMsg(err),true); }
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  fileInput.click();
+}
+function importModalBody(m){
+  const spec=IMPORT_SPEC[m.what];
+  const bad=m.rows.filter(r=>r._err).length, good=m.rows.length-bad;
+  const cols=spec.cols.filter(c=>m.rows.some(r=>c[0] in r && r[c[0]]!==''));
+  const show=v=>v==null?'':String(v);
+  return `<div class="${bad?'errlist':'oklist'}">${esc(m.file)}：共 ${m.rows.length} 列，可匯入 <b>${good}</b> 列${bad?`，<b>${bad}</b> 列有問題會略過（粉紅色列）`:''}</div>
+    <div class="prev"><table><thead><tr><th>列</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th>檢查</th></tr></thead>
+    <tbody>${m.rows.slice(0,200).map(r=>`<tr class="${r._err?'bad':''}"><td>${r._row}</td>${cols.map(c=>`<td title="${esc(show(c[0]==='password'&&r[c[0]]?'••••':r[c[0]]))}">${esc(c[0]==='password'&&r[c[0]]?'••••':show(r[c[0]]))}</td>`).join('')}<td>${r._err?esc(r._err):'✓'}</td></tr>`).join('')}</tbody></table></div>
+    ${m.what==='tasks'?`<label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（每位承辦人只收一封彙整通知）</label>`:''}`;
+}
+
+/* ═════════ 花園廣場 ═════════ */
+const PZ={W:1200,H:720,data:null,chars:{},order:[],raf:0,canvas:null,ctx:null,bg:null,keys:{},last:0,poll:0,sel:null,t:0,loading:false,flies:[],drops:[],lastSaved:null,saveTimer:0,dpr:1};
+const PZ_TOPS=['#FF6B8B','#4D8DF7','#36B37E','#FFB020','#8E6CF1','#FF7A45','#20B8C9','#E84FB5','#6C7A89','#F25C54'];
+const PZ_BOTTOMS=['#33415C','#5A4FCF','#2F6F5E','#8A5A44','#3D5A80','#B23A48','#4A4E69','#1F7A8C'];
+const PZ_HAIRS=['#2B1D14','#5B3A29','#8C5A3C','#C68B59','#E3B778','#3B3B58','#B5475D'];
+const PZ_SKINS=['#FFE0C7','#F6CBA4','#E8B48A','#C98E66'];
+const PZ_STATUS_COLOR={od:'#F0609A',review:'#F2B33D',wait:'#A673E8',pause:'#F08A3C',doing:'#5B8DEF',todo:'#A9BEDF'};
+const FOUNTAIN={x:600,y:350,rx:96,ry:56};
+const PZ_PROPS=[
+  {k:'tree',x:90,y:150,s:1.15},{k:'tree',x:210,y:95,s:0.9},{k:'tree',x:1100,y:150,s:1.1},{k:'tree',x:985,y:92,s:0.85},
+  {k:'tree',x:80,y:610,s:1.05},{k:'tree',x:1120,y:620,s:1.2},{k:'tree',x:330,y:70,s:0.75},{k:'tree',x:870,y:66,s:0.8},
+  {k:'bench',x:405,y:205},{k:'bench',x:795,y:205},{k:'bench',x:400,y:530},{k:'bench',x:800,y:530},
+  {k:'lamp',x:330,y:345},{k:'lamp',x:870,y:345},{k:'lamp',x:600,y:150},{k:'lamp',x:600,y:575}
+];
+
+function pzHash(s){ let h=2166136261; s=String(s); for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+function pzRng(seed){ let a=seed>>>0; return function(){ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+function pzStyle(p){
+  const g=p.gender==='女'||p.gender==='男'?p.gender:(pzHash(p.name)%2?'女':'男');
+  const i=((p.avatar>=1&&p.avatar<=30)?p.avatar:(pzHash(p.name)%30+1))-1;
+  return {g, idx:i+1, hair:(g==='女'?5:0)+(i%5), top:PZ_TOPS[i%10], bottom:PZ_BOTTOMS[(i*7)%8],
+    hairColor:PZ_HAIRS[(Math.floor(i/10)*2+(i%3))%7], skin:PZ_SKINS[(i*3+Math.floor(i/10))%4]};
+}
+
+function plazaHtml(){
+  const me=PZ.chars[S.me];
+  return `<section class="panel pz-panel">
+    <div class="panel-head"><h2>🌷 花園廣場</h2>
+      <div class="head-acts"><button class="btn purple" data-act="pzAvatar">👗 換造型</button><button class="btn" data-act="pzFind">📍 找到我</button></div></div>
+    <p class="pz-help">用 <b>方向鍵／WASD</b> 或 <b>點地面</b> 讓自己的人走過去；點別人可以看他的工作件數。每顆氣球代表一件未完成的工作。</p>
+    <div class="pz-legend">
+      <span><i style="background:${PZ_STATUS_COLOR.od}"></i>逾期</span><span><i style="background:${PZ_STATUS_COLOR.review}"></i>待確認</span>
+      <span><i style="background:${PZ_STATUS_COLOR.wait}"></i>等待外部</span><span><i style="background:${PZ_STATUS_COLOR.pause}"></i>暫停</span>
+      <span><i style="background:${PZ_STATUS_COLOR.doing}"></i>進行中</span><span><i style="background:${PZ_STATUS_COLOR.todo}"></i>未開始</span>
+      <span class="pz-tag">👑 主管</span><span class="pz-tag">🦖 管理者</span>
+    </div>
+    <div class="pz-wrap" id="pzWrap"><canvas id="pz" tabindex="0" aria-label="花園廣場，每個人物代表一位同事，氣球是未完成工作件數"></canvas>
+      <div class="pz-card" id="pzCard" hidden></div>
+      ${!PZ.data?'<div class="pz-loading">廣場準備中…</div>':''}
+    </div>
+  </section>`;
+}
+
+function mountPlaza(){
+  const cv=$('#pz'); if(!cv) return;
+  PZ.canvas=cv; PZ.ctx=cv.getContext('2d');
+  pzResize();
+  if(!PZ.bg) PZ.bg=pzBuildBg();
+  if(!PZ.flies.length){ const r=pzRng(7); for(let i=0;i<6;i++) PZ.flies.push({x:150+r()*900,y:150+r()*450,a:r()*6.28,c:['#FF8FB1','#FFD166','#9B8CFF','#7FD1FF','#FFFFFF','#FFB36B'][i],s:0.6+r()*0.5}); }
+  if(!PZ.data && !PZ.loading) pzLoad();
+  if(!PZ.poll) PZ.poll=setInterval(()=>{ if(PZ.canvas&&PZ.canvas.isConnected&&!document.hidden) pzLoad(); },20000);
+  if(!PZ.raf){ PZ.last=performance.now(); PZ.raf=requestAnimationFrame(pzFrame); }
+  cv.onpointerdown=pzPointer;
+  if(S.modal&&S.modal.kind==='avatar') pzPaintGrid();
+}
+function unmountPlaza(){
+  if(PZ.poll){ clearInterval(PZ.poll); PZ.poll=0; }
+  if(PZ.raf){ cancelAnimationFrame(PZ.raf); PZ.raf=0; }
+  PZ.canvas=null; PZ.sel=null;
+}
+function pzResize(){
+  const cv=PZ.canvas; if(!cv) return;
+  const w=cv.clientWidth||cv.parentNode.clientWidth||900, h=w*PZ.H/PZ.W;
+  PZ.dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(w*PZ.dpr); cv.height=Math.round(h*PZ.dpr); cv.style.height=h+'px';
+}
+window.addEventListener('resize',()=>{ if(PZ.canvas&&PZ.canvas.isConnected) pzResize(); });
+
+function pzLoad(){
+  PZ.loading=true;
+  api('api_plaza',S.token).then(d=>{ PZ.loading=false; pzApply(d); const l=document.querySelector('.pz-loading'); if(l) l.remove(); }).catch(e=>{ PZ.loading=false; onErr(e); });
+}
+function pzApply(d){
+  PZ.data=d;
+  const names=d.people.map(p=>p.name);
+  Object.keys(PZ.chars).forEach(n=>{ if(names.indexOf(n)<0) delete PZ.chars[n]; });
+  d.people.forEach((p,i)=>{
+    let c=PZ.chars[p.name];
+    const hasPos=p.x!=null&&p.y!=null;
+    const ang=(i/Math.max(1,d.people.length))*Math.PI*2+0.4;
+    const spot=hasPos?{x:p.x,y:p.y}:{x:FOUNTAIN.x+Math.cos(ang)*230,y:FOUNTAIN.y+30+Math.sin(ang)*150};
+    if(!c){
+      c=PZ.chars[p.name]={x:spot.x,y:spot.y,tx:null,ty:null,home:{...spot},dir:1,phase:0,walking:false,speed:0,seed:pzHash(p.name)%1000,wander:2+Math.random()*4};
+      pzSafe(c);
+    } else if(p.name!==S.me && hasPos && (Math.abs(p.x-c.home.x)>2||Math.abs(p.y-c.home.y)>2)){
+      c.home={x:p.x,y:p.y}; c.tx=p.x; c.ty=p.y;
+    }
+    Object.assign(c,{p,style:pzStyle(p)});
+  });
+  if(PZ.chars[S.me]&&!PZ.lastSaved){ const c=PZ.chars[S.me]; PZ.lastSaved={x:c.x,y:c.y}; }
+  PZ.order=Object.values(PZ.chars);
+  if(PZ.sel) pzShowCard(PZ.sel);
+}
+
+/* 移動與碰撞 */
+function pzSafe(c){
+  c.x=Math.max(30,Math.min(PZ.W-30,c.x)); c.y=Math.max(120,Math.min(PZ.H-30,c.y));
+  const dx=(c.x-FOUNTAIN.x)/(FOUNTAIN.rx+16), dy=(c.y-FOUNTAIN.y)/(FOUNTAIN.ry+14), d=Math.sqrt(dx*dx+dy*dy);
+  if(d<1){ const k=d<0.01?1:1/d; c.x=FOUNTAIN.x+(c.x-FOUNTAIN.x||1)*k; c.y=FOUNTAIN.y+(c.y-FOUNTAIN.y)*k; }
+  PZ_PROPS.forEach(o=>{ if(o.k!=='tree'&&o.k!=='lamp') return; const r=o.k==='tree'?22*o.s:10; const ex=c.x-o.x, ey=(c.y-o.y)*1.6, dd=Math.sqrt(ex*ex+ey*ey); if(dd<r&&dd>0.01){ c.x=o.x+ex/dd*r; c.y=o.y+ey/dd*r/1.6; } });
+}
+function pzUpdate(dt){
+  PZ.t+=dt;
+  const me=PZ.chars[S.me];
+  Object.values(PZ.chars).forEach(c=>{
+    let vx=0, vy=0, sp=0;
+    if(c===me){
+      const k=PZ.keys, kx=(k.ArrowRight||k.d?1:0)-(k.ArrowLeft||k.a?1:0), ky=(k.ArrowDown||k.s?1:0)-(k.ArrowUp||k.w?1:0);
+      if(kx||ky){ const l=Math.hypot(kx,ky); vx=kx/l; vy=ky/l; sp=175; c.tx=null; }
+    } else {
+      c.wander-=dt;
+      if(c.wander<=0&&c.tx==null){ const r=Math.random()*40+10, a=Math.random()*6.28; c.tx=c.home.x+Math.cos(a)*r; c.ty=c.home.y+Math.sin(a)*r*0.6; c.wander=4+Math.random()*6; }
+    }
+    if(!sp&&c.tx!=null){
+      const dx=c.tx-c.x, dy=c.ty-c.y, d=Math.hypot(dx,dy);
+      if(d<3){ c.tx=null; } else { vx=dx/d; vy=dy/d; sp=c===me?175:(d>80?110:45); }
+    }
+    if(sp){
+      const ox=c.x, oy=c.y;
+      c.x+=vx*sp*dt; c.y+=vy*sp*dt; pzSafe(c);
+      if(Math.abs(c.x-ox)+Math.abs(c.y-oy)<0.05*sp*dt){ c.tx=null; }
+      if(Math.abs(vx)>0.15) c.dir=vx>0?1:-1;
+      c.walking=true; c.phase+=dt*sp*0.075; c.speed=Math.min(1,c.speed+dt*4);
+    } else { c.walking=false; c.speed=Math.max(0,c.speed-dt*2.5); }
+  });
+  if(me){
+    const moved=PZ.lastSaved&&(Math.abs(me.x-PZ.lastSaved.x)>3||Math.abs(me.y-PZ.lastSaved.y)>3);
+    if(moved&&!me.walking&&!PZ.saveTimer){
+      PZ.saveTimer=setTimeout(()=>{ PZ.saveTimer=0; const c=PZ.chars[S.me]; if(!c||c.walking) return; PZ.lastSaved={x:c.x,y:c.y}; api('api_plazaMove',S.token,Math.round(c.x),Math.round(c.y)).catch(()=>{}); },1200);
+    }
+  }
+  PZ.flies.forEach(f=>{ f.a+=dt*(0.6+f.s*0.5); f.x+=Math.cos(f.a*0.7)*dt*40*f.s; f.y+=Math.sin(f.a*1.3)*dt*25*f.s; if(f.x<60||f.x>PZ.W-60) f.a+=Math.PI; f.y=Math.max(140,Math.min(PZ.H-60,f.y)); });
+  if(Math.random()<dt*28) PZ.drops.push({x:FOUNTAIN.x+(Math.random()-0.5)*6,y:FOUNTAIN.y-58,vx:(Math.random()-0.5)*70,vy:-60-Math.random()*50,life:1});
+  PZ.drops.forEach(d=>{ d.x+=d.vx*dt; d.y+=d.vy*dt; d.vy+=160*dt; d.life-=dt*0.9; });
+  PZ.drops=PZ.drops.filter(d=>d.life>0&&d.y<FOUNTAIN.y-4);
+  if(PZ.sel) pzShowCard(PZ.sel,true);
+}
+function pzFrame(now){
+  if(!PZ.canvas||!PZ.canvas.isConnected){ PZ.raf=0; return; }
+  const dt=Math.min(0.05,(now-PZ.last)/1000); PZ.last=now;
+  pzUpdate(dt); pzDraw();
+  PZ.raf=requestAnimationFrame(pzFrame);
+}
+
+/* 輸入 */
+function pzTyping(){ const a=document.activeElement; return a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName); }
+document.addEventListener('keydown',e=>{
+  if(!PZ.canvas||!PZ.canvas.isConnected||pzTyping()||S.modal) return;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].indexOf(k)>=0){ PZ.keys[k]=true; e.preventDefault(); }
+});
+document.addEventListener('keyup',e=>{ const k=e.key.length===1?e.key.toLowerCase():e.key; PZ.keys[k]=false; });
+window.addEventListener('blur',()=>{ PZ.keys={}; });
+function pzToWorld(e){ const r=PZ.canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*PZ.W, y:(e.clientY-r.top)/r.height*PZ.H}; }
+function pzPointer(e){
+  const w=pzToWorld(e);
+  const hit=Object.values(PZ.chars).filter(c=>Math.abs(w.x-c.x)<20&&w.y<c.y+8&&w.y>c.y-80).sort((a,b)=>b.y-a.y)[0];
+  if(hit&&hit.p.name!==S.me){ PZ.sel=hit.p.name; pzShowCard(PZ.sel); return; }
+  if(hit&&hit.p.name===S.me){ PZ.sel=S.me; pzShowCard(S.me); return; }
+  PZ.sel=null; pzShowCard(null);
+  const me=PZ.chars[S.me]; if(me){ me.tx=w.x; me.ty=w.y; }
+  PZ.canvas.focus({preventScroll:true});
+}
+function pzShowCard(name,onlyMove){
+  const el=$('#pzCard'); if(!el) return;
+  const c=name&&PZ.chars[name];
+  if(!c){ el.hidden=true; return; }
+  const r=PZ.canvas.getBoundingClientRect(), k=r.width/PZ.W;
+  if(!onlyMove||el.hidden){
+    const p=c.p, rl=p.super?'🦖 管理者':(p.role==='主管'?'👑 主管':'員工');
+    el.innerHTML=`<div class="pz-card-h">${avatar(p.name)}<b>${esc(p.name)}</b><span class="role ${p.role==='主管'?'mgr':''}">${rl}</span><button class="x" data-act="pzClose">×</button></div>
+      <div class="pz-stats"><div><b>${p.open}</b>未完成</div><div class="od"><b>${p.overdue}</b>逾期</div><div class="rv"><b>${p.review}</b>待確認</div><div class="wt"><b>${p.waiting}</b>等待外部</div><div class="dn"><b>${p.doneWeek}</b>7 天內完成</div></div>
+      ${p.name===S.me?'<div class="pz-me">這是你！<button class="btn sm purple" data-act="pzAvatar">換造型</button></div>':''}`;
+    el.hidden=false;
+  }
+  const x=c.x*k, y=(c.y-90)*k, w=el.offsetWidth||230;
+  el.style.left=Math.max(6,Math.min(r.width-w-6,x-w/2))+'px';
+  el.style.top=Math.max(6,y-el.offsetHeight)+'px';
+}
+
+/* 背景（靜態，只畫一次） */
+function pzBuildBg(){
+  const c=document.createElement('canvas'), sc=2; c.width=PZ.W*sc; c.height=PZ.H*sc;
+  const g=c.getContext('2d'); g.scale(sc,sc);
+  const r=pzRng(42);
+  const grd=g.createLinearGradient(0,0,0,PZ.H); grd.addColorStop(0,'#A8DC87'); grd.addColorStop(1,'#7DC266');
+  g.fillStyle=grd; g.fillRect(0,0,PZ.W,PZ.H);
+  g.save(); g.globalAlpha=0.07; g.fillStyle='#FFFFFF';
+  for(let i=-PZ.H;i<PZ.W;i+=70){ g.beginPath(); g.moveTo(i,0); g.lineTo(i+35,0); g.lineTo(i+35+PZ.H*0.5,PZ.H); g.lineTo(i+PZ.H*0.5,PZ.H); g.closePath(); g.fill(); }
+  g.restore();
+  for(let i=0;i<500;i++){ g.fillStyle=r()<0.5?'rgba(60,130,50,.25)':'rgba(255,255,255,.18)'; const x=r()*PZ.W, y=r()*PZ.H; g.fillRect(x,y,2,4); }
+  /* 小徑 */
+  g.fillStyle='#EADFC8';
+  pzRound(g,FOUNTAIN.x-38,0,76,PZ.H,30); g.fill();
+  pzRound(g,0,FOUNTAIN.y-30,PZ.W,62,28); g.fill();
+  g.strokeStyle='rgba(160,130,90,.18)'; g.lineWidth=2; g.setLineDash([10,14]);
+  g.beginPath(); g.moveTo(FOUNTAIN.x,0); g.lineTo(FOUNTAIN.x,PZ.H); g.moveTo(0,FOUNTAIN.y); g.lineTo(PZ.W,FOUNTAIN.y); g.stroke(); g.setLineDash([]);
+  /* 廣場石磚 */
+  g.fillStyle='#F2E8D5'; g.beginPath(); g.ellipse(FOUNTAIN.x,FOUNTAIN.y+8,300,185,0,0,Math.PI*2); g.fill();
+  g.strokeStyle='rgba(170,140,100,.25)'; g.lineWidth=1.5;
+  [270,230,190,150].forEach(rr=>{ g.beginPath(); g.ellipse(FOUNTAIN.x,FOUNTAIN.y+8,rr,rr*0.62,0,0,Math.PI*2); g.stroke(); });
+  for(let a=0;a<Math.PI*2;a+=Math.PI/12){ g.beginPath(); g.moveTo(FOUNTAIN.x+Math.cos(a)*120,FOUNTAIN.y+8+Math.sin(a)*74); g.lineTo(FOUNTAIN.x+Math.cos(a)*298,FOUNTAIN.y+8+Math.sin(a)*184); g.stroke(); }
+  g.strokeStyle='#D9C7A6'; g.lineWidth=4; g.beginPath(); g.ellipse(FOUNTAIN.x,FOUNTAIN.y+8,300,185,0,0,Math.PI*2); g.stroke();
+  /* 花圃 */
+  const beds=[[220,250],[980,250],[220,500],[980,500],[440,640],[760,640],[460,110],[740,110]];
+  const FC=['#FF6F91','#FFC75F','#C493FF','#FFFFFF','#FF9671','#F9F871','#FF8FD8'];
+  beds.forEach((b,bi)=>{
+    g.fillStyle='rgba(0,0,0,.08)'; g.beginPath(); g.ellipse(b[0],b[1]+6,72,26,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#5E9E4B'; g.beginPath(); g.ellipse(b[0],b[1],70,24,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#6FB257'; g.beginPath(); g.ellipse(b[0],b[1]-3,64,19,0,0,Math.PI*2); g.fill();
+    for(let i=0;i<22;i++){
+      const fx=b[0]+(r()-0.5)*118, fy=b[1]+(r()-0.5)*32; const col=FC[(bi+i)%FC.length];
+      g.fillStyle='#3E7D33'; g.fillRect(fx-0.7,fy,1.4,6);
+      g.fillStyle=col; for(let k=0;k<5;k++){ const a=k*Math.PI*2/5; g.beginPath(); g.arc(fx+Math.cos(a)*3.2,fy+Math.sin(a)*3.2,2.6,0,Math.PI*2); g.fill(); }
+      g.fillStyle='#FFE066'; g.beginPath(); g.arc(fx,fy,1.8,0,Math.PI*2); g.fill();
+    }
+  });
+  /* 上方樹籬 */
+  for(let x=-20;x<PZ.W+40;x+=46){ if(Math.abs(x-FOUNTAIN.x)<60) continue; g.fillStyle='#4F9A44'; g.beginPath(); g.arc(x,38,32,0,Math.PI*2); g.fill(); g.fillStyle='#62AD52'; g.beginPath(); g.arc(x-6,30,22,0,Math.PI*2); g.fill(); }
+  g.fillStyle='#3F8537'; g.fillRect(0,48,FOUNTAIN.x-60,22); g.fillRect(FOUNTAIN.x+60,48,PZ.W,22);
+  /* 拱門招牌 */
+  g.fillStyle='#A9744F'; g.fillRect(FOUNTAIN.x-58,22,8,70); g.fillRect(FOUNTAIN.x+50,22,8,70);
+  g.fillStyle='#FFF4E0'; pzRound(g,FOUNTAIN.x-82,14,164,34,10); g.fill(); g.strokeStyle='#C98A5A'; g.lineWidth=3; g.stroke();
+  g.fillStyle='#8A4F2A'; g.font='700 19px "Noto Sans TC",sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('🌷 花園廣場',FOUNTAIN.x,32);
+  return c;
+}
+function pzRound(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+
+/* 每格畫面 */
+function pzDraw(){
+  const g=PZ.ctx, cv=PZ.canvas; if(!g) return;
+  const k=cv.width/PZ.W;
+  g.setTransform(k,0,0,k,0,0);
+  g.drawImage(PZ.bg,0,0,PZ.W,PZ.H);
+  const items=PZ_PROPS.map(o=>({y:o.y,f:()=>pzProp(g,o)}));
+  items.push({y:FOUNTAIN.y,f:()=>pzFountain(g)});
+  Object.values(PZ.chars).forEach(c=>{ if(c.p) items.push({y:c.y,f:()=>pzChar(g,c,PZ.t,c.p.name===S.me)}); });
+  items.sort((a,b)=>a.y-b.y).forEach(it=>it.f());
+  Object.values(PZ.chars).forEach(c=>{ if(c.p) pzTag(g,c); });
+  PZ.flies.forEach(f=>pzFly(g,f));
+}
+function pzFountain(g){
+  const F=FOUNTAIN, t=PZ.t;
+  g.fillStyle='rgba(0,0,0,.12)'; g.beginPath(); g.ellipse(F.x,F.y+12,F.rx+8,F.ry+6,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#CFC3AE'; g.beginPath(); g.ellipse(F.x,F.y+6,F.rx,F.ry,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#E9E0CF'; g.beginPath(); g.ellipse(F.x,F.y,F.rx,F.ry,0,0,Math.PI*2); g.fill();
+  const wg=g.createRadialGradient(F.x,F.y,10,F.x,F.y,F.rx); wg.addColorStop(0,'#8FE3FF'); wg.addColorStop(1,'#4BB4E6');
+  g.fillStyle=wg; g.beginPath(); g.ellipse(F.x,F.y+2,F.rx-12,F.ry-9,0,0,Math.PI*2); g.fill();
+  g.strokeStyle='rgba(255,255,255,.55)'; g.lineWidth=1.5;
+  for(let i=0;i<3;i++){ const p=((t*0.35+i/3)%1); g.globalAlpha=1-p; g.beginPath(); g.ellipse(F.x,F.y+2,14+p*(F.rx-28),8+p*(F.ry-20),0,0,Math.PI*2); g.stroke(); }
+  g.globalAlpha=1;
+  g.fillStyle='#D8CCB6'; g.fillRect(F.x-7,F.y-46,14,48);
+  g.fillStyle='#E9E0CF'; g.beginPath(); g.ellipse(F.x,F.y-46,26,9,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#7FD6F7'; g.beginPath(); g.ellipse(F.x,F.y-47,20,6,0,0,Math.PI*2); g.fill();
+  g.fillStyle='rgba(200,240,255,.9)'; PZ.drops.forEach(d=>{ g.globalAlpha=Math.max(0,d.life); g.beginPath(); g.arc(d.x,d.y,2,0,Math.PI*2); g.fill(); });
+  g.globalAlpha=1;
+}
+function pzProp(g,o){
+  if(o.k==='tree'){
+    const s=o.s; g.fillStyle='rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(o.x,o.y+4,34*s,11*s,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#8B5A3C'; pzRound(g,o.x-7*s,o.y-42*s,14*s,46*s,5*s); g.fill();
+    const sw=Math.sin(PZ.t*0.8+o.x)*1.5;
+    [[0,-78,40,'#3F8F3A'],[-24,-62,28,'#4C9F45'],[24,-62,28,'#4C9F45'],[0,-96,28,'#5DB352'],[-10,-84,18,'#73C566']].forEach(b=>{ g.fillStyle=b[3]; g.beginPath(); g.arc(o.x+b[0]*s+sw,o.y+b[1]*s,b[2]*s,0,Math.PI*2); g.fill(); });
+    g.fillStyle='#FF6B6B'; [[-18,-74],[16,-88],[8,-60],[-4,-100]].forEach(a=>{ g.beginPath(); g.arc(o.x+a[0]*s+sw,o.y+a[1]*s,3.2*s,0,Math.PI*2); g.fill(); });
+  } else if(o.k==='bench'){
+    g.fillStyle='rgba(0,0,0,.13)'; g.beginPath(); g.ellipse(o.x,o.y+3,40,8,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#6B4A35'; g.fillRect(o.x-32,o.y-12,4,14); g.fillRect(o.x+28,o.y-12,4,14);
+    g.fillStyle='#C98A5A'; pzRound(g,o.x-38,o.y-18,76,8,3); g.fill(); pzRound(g,o.x-38,o.y-34,76,7,3); g.fill(); pzRound(g,o.x-38,o.y-26,76,6,3); g.fill();
+  } else if(o.k==='lamp'){
+    g.fillStyle='rgba(0,0,0,.13)'; g.beginPath(); g.ellipse(o.x,o.y+2,12,4,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#3E4A61'; g.fillRect(o.x-2.5,o.y-70,5,72); g.fillRect(o.x-8,o.y-4,16,5);
+    g.fillStyle='#FFF2B3'; g.beginPath(); g.arc(o.x,o.y-76,9,0,Math.PI*2); g.fill();
+    g.fillStyle='rgba(255,240,170,.25)'; g.beginPath(); g.arc(o.x,o.y-76,16+Math.sin(PZ.t*2+o.x)*1.5,0,Math.PI*2); g.fill();
+    g.fillStyle='#3E4A61'; g.beginPath(); g.moveTo(o.x-11,o.y-82); g.lineTo(o.x+11,o.y-82); g.lineTo(o.x,o.y-92); g.closePath(); g.fill();
+  }
+}
+function pzFly(g,f){
+  const flap=Math.abs(Math.sin(PZ.t*12+f.a*3));
+  g.save(); g.translate(f.x,f.y); g.fillStyle=f.c; g.globalAlpha=0.9;
+  g.beginPath(); g.ellipse(-3,0,5*flap+1,4,0.4,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(3,0,5*flap+1,4,-0.4,0,Math.PI*2); g.fill();
+  g.fillStyle='#333'; g.fillRect(-0.6,-3,1.2,6); g.restore(); g.globalAlpha=1;
+}
+
+/* 人物 */
+function pzBalloonColors(p){ return (p.bal||[]).map(k=>PZ_STATUS_COLOR[k]||PZ_STATUS_COLOR.doing); }
+function pzChar(g,c,t,isMe){
+  const st=c.style, p=c.p, x=c.x, y=c.y;
+  const sw=c.walking?Math.sin(c.phase):0;
+  const bob=c.walking?Math.abs(Math.sin(c.phase))*2.2:Math.sin(t*2+c.seed)*0.8;
+  if(isMe){ g.strokeStyle='rgba(45,91,227,.55)'; g.lineWidth=2.5; g.beginPath(); g.ellipse(x,y,22,7,0,0,Math.PI*2); g.stroke(); }
+  g.fillStyle='rgba(0,0,0,.18)'; g.beginPath(); g.ellipse(x,y,15,4.5,0,0,Math.PI*2); g.fill();
+  /* 氣球（先畫在身後） */
+  const cols=pzBalloonColors(p), n=Math.min(cols.length,10);
+  const hx=x+12*c.dir, hy=y-25-bob;
+  for(let i=0;i<n;i++){
+    const off=i-(n-1)/2;
+    const swing=Math.sin(t*1.7+i*1.3+c.seed)*(2.5+c.speed*7)-c.speed*c.dir*10;
+    const bx=hx+off*15+swing, by=hy-56-Math.abs(off)*5-(i%2)*10;
+    g.strokeStyle='rgba(90,90,110,.55)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo(hx,hy); g.quadraticCurveTo(hx+off*6+swing*0.4,hy-25,bx,by+12); g.stroke();
+    g.fillStyle=cols[i]; g.beginPath(); g.ellipse(bx,by,9,11,Math.sin(t+i)*0.08,0,Math.PI*2); g.fill();
+    g.beginPath(); g.moveTo(bx-2.5,by+12.5); g.lineTo(bx+2.5,by+12.5); g.lineTo(bx,by+9.5); g.closePath(); g.fill();
+    g.fillStyle='rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(bx-3,by-4,2.4,3.6,-0.5,0,Math.PI*2); g.fill();
+    if(i===n-1&&p.open>10){ g.fillStyle='#fff'; g.font='700 9px Inter,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('+'+(p.open-9),bx,by+1); }
+  }
+  g.save(); g.translate(x,0); g.scale(c.dir,1); g.translate(-x,0);
+  const female=st.g==='女';
+  /* 腿 */
+  const l1=Math.max(0,sw)*4, l2=Math.max(0,-sw)*4, lx=sw*1.8;
+  g.fillStyle=female?st.skin:st.bottom;
+  pzRound(g,x-8+lx,y-17-l1,6,15,3); g.fill(); pzRound(g,x+2-lx,y-17-l2,6,15,3); g.fill();
+  g.fillStyle='#3B3B4F'; g.beginPath(); g.ellipse(x-5+lx,y-1.5-l1,4.5,2.5,0,0,Math.PI*2); g.fill(); g.beginPath(); g.ellipse(x+5-lx,y-1.5-l2,4.5,2.5,0,0,Math.PI*2); g.fill();
+  /* 身體 */
+  const by0=y-38-bob;
+  g.fillStyle=st.top; pzRound(g,x-11,by0,22,22,8); g.fill();
+  if(female){ g.fillStyle=st.bottom; g.beginPath(); g.moveTo(x-11,by0+15); g.lineTo(x+11,by0+15); g.lineTo(x+15,by0+27); g.lineTo(x-15,by0+27); g.closePath(); g.fill(); }
+  else { g.fillStyle='rgba(255,255,255,.35)'; g.beginPath(); g.moveTo(x-4,by0+1); g.lineTo(x,by0+6); g.lineTo(x+4,by0+1); g.closePath(); g.fill(); }
+  /* 手臂 */
+  const as=sw*0.5;
+  g.strokeStyle=st.top; g.lineWidth=5.5; g.lineCap='round';
+  g.beginPath(); g.moveTo(x-9,by0+5); g.lineTo(x-13-as*6,by0+16); g.stroke();
+  g.beginPath(); g.moveTo(x+9,by0+5); g.lineTo(x+12,by0+14); g.stroke();
+  g.fillStyle=st.skin; g.beginPath(); g.arc(x-13-as*6,by0+17,3.2,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(x+12,by0+15,3.2,0,Math.PI*2); g.fill();
+  /* 頭 */
+  const hcx=x, hcy=y-55-bob;
+  if(p.super){ pzDino(g,hcx,hcy,st,t,c); }
+  else {
+    pzHairBack(g,st,hcx,hcy,t,c);
+    g.fillStyle=st.skin; g.beginPath(); g.arc(hcx,hcy,16,0,Math.PI*2); g.fill();
+    pzFace(g,hcx,hcy+2,t,c);
+    pzHairFront(g,st,hcx,hcy);
+    if(p.role==='主管') pzCrown(g,hcx,hcy-17,t);
+  }
+  g.restore();
+}
+function pzFace(g,x,y,t,c){
+  const blink=((t+c.seed*0.01)%4)<0.12;
+  g.fillStyle='#2B2B3A';
+  if(blink){ g.fillRect(x-7.5,y-1,5,1.6); g.fillRect(x+2.5,y-1,5,1.6); }
+  else { g.beginPath(); g.ellipse(x-5,y-1,2.2,2.8,0,0,Math.PI*2); g.fill(); g.beginPath(); g.ellipse(x+5,y-1,2.2,2.8,0,0,Math.PI*2); g.fill();
+    g.fillStyle='#fff'; g.beginPath(); g.arc(x-4.3,y-2,0.9,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(x+5.7,y-2,0.9,0,Math.PI*2); g.fill(); }
+  g.fillStyle='rgba(255,120,140,.35)'; g.beginPath(); g.ellipse(x-9,y+3.5,3,2,0,0,Math.PI*2); g.fill(); g.beginPath(); g.ellipse(x+9,y+3.5,3,2,0,0,Math.PI*2); g.fill();
+  g.strokeStyle='#8A4B3A'; g.lineWidth=1.4; g.beginPath(); g.arc(x,y+4,3,0.15*Math.PI,0.85*Math.PI); g.stroke();
+}
+function pzHairBack(g,st,x,y,t,c){
+  g.fillStyle=st.hairColor;
+  const h=st.hair, sw=Math.sin(t*3+c.seed)*(1+c.speed*2);
+  if(h===5){ pzRound(g,x-18,y-6,36,22,9); g.fill(); }
+  if(h===6){ pzRound(g,x-18,y-8,36,40,12); g.fill(); }
+  if(h===7){ g.beginPath(); g.ellipse(x-19+sw*0.5,y+4,6,14,0.35,0,Math.PI*2); g.fill(); }
+  if(h===8){ g.beginPath(); g.ellipse(x-19,y+6+sw*0.3,5.5,13,0.25,0,Math.PI*2); g.fill(); g.beginPath(); g.ellipse(x+19,y+6-sw*0.3,5.5,13,-0.25,0,Math.PI*2); g.fill(); }
+}
+function pzHairFront(g,st,x,y){
+  g.fillStyle=st.hairColor; const h=st.hair;
+  if(h===0){ g.beginPath(); g.arc(x,y-2,16.5,Math.PI*1.02,Math.PI*1.98); g.lineTo(x+14,y-6); g.quadraticCurveTo(x,y-11,x-14,y-6); g.closePath(); g.fill(); }
+  else if(h===1){ g.beginPath(); g.moveTo(x-16,y-4); for(let i=0;i<=6;i++){ const px=x-16+i*32/6; g.lineTo(px,y-(i%2?24:14)); } g.lineTo(x+16,y-4); g.quadraticCurveTo(x,y-10,x-16,y-4); g.fill(); }
+  else if(h===2){ g.beginPath(); g.arc(x,y-2,16.5,Math.PI,Math.PI*2); g.quadraticCurveTo(x+4,y-6,x-6,y-4); g.quadraticCurveTo(x-12,y-2,x-16,y+2); g.closePath(); g.fill(); }
+  else if(h===3){ [[-12,-8],[-6,-14],[2,-15],[9,-12],[14,-6],[-15,-1],[15,0]].forEach(a=>{ g.beginPath(); g.arc(x+a[0],y+a[1],6.5,0,Math.PI*2); g.fill(); }); }
+  else if(h===4){ g.beginPath(); g.arc(x,y-1,17.5,Math.PI*0.96,Math.PI*2.04); g.lineTo(x+16,y-3); g.lineTo(x-16,y-3); g.closePath(); g.fill(); }
+  else if(h===5){ g.beginPath(); g.arc(x,y-2,17,Math.PI,Math.PI*2); g.lineTo(x+17,y+8); g.lineTo(x+12,y+8); g.lineTo(x+12,y-5); g.quadraticCurveTo(x,y-8,x-12,y-5); g.lineTo(x-12,y+8); g.lineTo(x-17,y+8); g.closePath(); g.fill(); }
+  else if(h===6){ g.beginPath(); g.arc(x,y-2,17,Math.PI,Math.PI*2); g.lineTo(x+17,y+4); g.lineTo(x+13,y+4); g.quadraticCurveTo(x+6,y-9,x-2,y-6); g.quadraticCurveTo(x-10,y-4,x-13,y+4); g.lineTo(x-17,y+4); g.closePath(); g.fill(); }
+  else if(h===7||h===8){ g.beginPath(); g.arc(x,y-2,16.8,Math.PI,Math.PI*2); g.quadraticCurveTo(x,y-9,x-16.8,y-2); g.fill(); g.fillStyle='#FF6F91'; if(h===7){ g.beginPath(); g.arc(x-15,y-6,3,0,Math.PI*2); g.fill(); } else { g.beginPath(); g.arc(x-15,y-4,2.6,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(x+15,y-4,2.6,0,Math.PI*2); g.fill(); } }
+  else if(h===9){ g.beginPath(); g.arc(x,y-2,16.8,Math.PI,Math.PI*2); g.quadraticCurveTo(x,y-9,x-16.8,y-2); g.fill(); g.beginPath(); g.arc(x,y-20,8,0,Math.PI*2); g.fill(); g.fillStyle='#FFD166'; g.fillRect(x-6,y-14,12,2.5); }
+}
+function pzCrown(g,x,y,t){
+  const s=Math.sin(t*2)*0.6;
+  g.save(); g.translate(x,y+s); g.rotate(-0.08);
+  g.fillStyle='#FFC83D'; g.beginPath(); g.moveTo(-11,4); g.lineTo(-12,-8); g.lineTo(-5,-2); g.lineTo(0,-11); g.lineTo(5,-2); g.lineTo(12,-8); g.lineTo(11,4); g.closePath(); g.fill();
+  g.strokeStyle='#E09B12'; g.lineWidth=1.2; g.stroke();
+  g.fillStyle='#FF5C8A'; g.beginPath(); g.arc(0,0,2.2,0,Math.PI*2); g.fill();
+  g.fillStyle='#4DA3FF'; g.beginPath(); g.arc(-7,1,1.6,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(7,1,1.6,0,Math.PI*2); g.fill();
+  g.fillStyle='rgba(255,255,255,.8)'; g.beginPath(); g.arc(0,-11,1.4+Math.abs(Math.sin(t*3)),0,Math.PI*2); g.fill();
+  g.restore();
+}
+function pzDino(g,x,y,st,t,c){
+  const G='#5CC26A', D='#3E9E4E';
+  /* 尾巴（背後） */
+  g.fillStyle=G; g.beginPath(); g.moveTo(x-12,y+22); g.quadraticCurveTo(x-34,y+30+Math.sin(t*3)*3,x-38,y+40); g.quadraticCurveTo(x-24,y+38,x-8,y+32); g.closePath(); g.fill();
+  /* 頭套 */
+  g.fillStyle=G; g.beginPath(); g.arc(x,y-1,21,0,Math.PI*2); g.fill();
+  g.fillStyle='#FF9F43';
+  for(let i=0;i<5;i++){ const a=Math.PI*1.12+i*0.2; const bx=x+Math.cos(a)*20, by=y-1+Math.sin(a)*20; g.beginPath(); g.moveTo(bx-4*Math.sin(a),by+4*Math.cos(a)); g.lineTo(x+Math.cos(a)*29,y-1+Math.sin(a)*29); g.lineTo(bx+4*Math.sin(a),by-4*Math.cos(a)); g.closePath(); g.fill(); }
+  /* 臉的開口 */
+  g.fillStyle=st.skin; g.beginPath(); g.ellipse(x+1,y+4,13,12,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#fff'; for(let i=0;i<6;i++){ const tx=x-10+i*4.2; g.beginPath(); g.moveTo(tx,y-6); g.lineTo(tx+2.1,y-1.5); g.lineTo(tx+4.2,y-6); g.closePath(); g.fill(); }
+  g.strokeStyle=D; g.lineWidth=2; g.beginPath(); g.ellipse(x+1,y+4,13,12,0,0,Math.PI*2); g.stroke();
+  /* 恐龍眼睛 */
+  [[-8,-17],[8,-17]].forEach(e=>{ g.fillStyle='#fff'; g.beginPath(); g.arc(x+e[0],y+e[1],5,0,Math.PI*2); g.fill(); g.fillStyle='#222'; g.beginPath(); g.arc(x+e[0]+1,y+e[1]+0.5,2.4,0,Math.PI*2); g.fill(); });
+  g.fillStyle=D; g.beginPath(); g.arc(x-3,y-22,1,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(x+3,y-22,1,0,Math.PI*2); g.fill();
+  pzFace(g,x+1,y+6,t,c);
+}
+function pzTag(g,c){
+  const p=c.p, isMe=p.name===S.me, x=c.x, y=c.y+16;
+  const label=p.name+(p.open?'　'+p.open+' 件':'　✨');
+  g.font='600 12px "Noto Sans TC",Inter,sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  const w=g.measureText(label).width+16;
+  g.fillStyle=isMe?'#2D5BE3':'rgba(255,255,255,.92)'; pzRound(g,x-w/2,y-9,w,18,9); g.fill();
+  if(!isMe){ g.strokeStyle='rgba(28,27,46,.12)'; g.lineWidth=1; g.stroke(); }
+  g.fillStyle=isMe?'#fff':'#1C1B2E'; g.fillText(label,x,y+0.5);
+  if(p.overdue){ g.fillStyle='#F0609A'; g.beginPath(); g.arc(x+w/2-2,y-8,5,0,Math.PI*2); g.fill(); g.fillStyle='#fff'; g.font='700 8px Inter,sans-serif'; g.fillText('!',x+w/2-2,y-7.5); }
+}
+
+/* 造型選擇（30 種） */
+function pzAvatarModal(){
+  const me=PZ.data&&PZ.data.people.find(p=>p.name===S.me)||{name:S.me,gender:'',avatar:0};
+  const st=pzStyle(me);
+  S.modal={kind:'avatar',gender:st.g,avatar:st.idx,color:'#8A55D6'}; renderModal();
+}
+function pzAvatarBody(m){
+  return `<div class="field"><label>性別（預設服裝：男生褲裝、女生裙裝）</label><div class="pills">${['男','女'].map(g=>`<button class="pill ${m.gender===g?'on':''}" data-act="pzGender" data-v="${g}">${g}</button>`).join('')}</div></div>
+    <div class="pz-grid">${Array.from({length:30},(_,i)=>`<button class="pz-opt ${m.avatar===i+1?'on':''}" data-act="pzPick" data-v="${i+1}" title="造型 ${i+1}"><canvas width="140" height="170" data-av="${i+1}"></canvas><span>${i+1}</span></button>`).join('')}</div>`;
+}
+function pzPaintGrid(){
+  const m=S.modal; if(!m||m.kind!=='avatar') return;
+  const me=PZ.data&&PZ.data.people.find(p=>p.name===S.me)||{name:S.me,role:'員工',open:0};
+  document.querySelectorAll('canvas[data-av]').forEach(cv=>{
+    const g=cv.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height);
+    g.setTransform(2,0,0,2,0,0);
+    const p={name:me.name,role:'員工',super:false,gender:m.gender,avatar:Number(cv.dataset.av),open:0,overdue:0,review:0,waiting:0,paused:0,todo:0,bal:[]};
+    const c={x:35,y:78,dir:1,phase:0,walking:false,speed:0,seed:3,p,style:pzStyle(p)};
+    pzChar(g,c,0.5,false);
+  });
+}
+
+/* ═════════ 系統設定（最高管理者） ═════════ */
+const MODELS=[['gemini-3.5-flash-lite','3.5 Flash-Lite（推薦：快、便宜）'],['gemini-3.8-flash','3.8 Flash（品質較好）'],['gemini-3.6-flash','3.6 Flash'],['gemini-3.1-flash-lite','3.1 Flash-Lite']];
+function settingsPage(){
+  if(!S.sets){
+    api('api_getSettings',S.token).then(v=>{ S.sets={...v,key:'',test:null}; render(); }).catch(onErr);
+    return `<section class="panel"><div class="loading">載入設定中…</div></section>`;
+  }
+  const v=S.sets, custom=!MODELS.some(m=>m[0]===v.model);
+  return `<section class="panel">
+    <div class="panel-head"><h2>系統設定</h2><span class="badge">最高管理者</span></div>
+    <div class="set-sec">
+      <h3>${SPARK} AI 設定（Gemini）<span class="key-state ${v.hasKey?'on':'off'}">${v.hasKey?'已設定金鑰 '+esc(v.keyMasked):'尚未設定金鑰'}</span></h3>
+      <ol>
+        <li>打開 <a href="https:\/\/aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio 的 API 金鑰頁面</a>，用 Google 帳號登入</li>
+        <li>按「Create API key」建立金鑰並複製</li>
+        <li>貼到下面，先按「測試連線」，成功後按「儲存設定」</li>
+      </ol>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>API 金鑰${v.hasKey?'<span class="opt">留空表示不變</span>':''}</label><input class="inp" type="password" data-bind="st.key" value="${esc(v.key)}" placeholder="${v.hasKey?'輸入新金鑰即可替換':'貼上以 AIza 開頭的金鑰'}" autocomplete="off"></div>
+        <div class="field"><label>模型</label><select class="inp" data-bind="st.model">${MODELS.map(m=>`<option value="${m[0]}" ${v.model===m[0]?'selected':''}>${m[1]}</option>`).join('')}${custom?`<option value="${esc(v.model)}" selected>${esc(v.model)}</option>`:''}</select></div>
+      </div>
+      <div class="imp-acts" style="margin-top:14px">
+        <button class="btn ai" data-act="testAi" ${v.testing?'disabled':''}>${v.testing?'<span class="spin"></span> 測試中…':'測試連線'}</button>
+        ${v.hasKey?'<button class="btn pink" data-act="clearKey">移除金鑰</button>':''}
+      </div>
+      ${v.test?`<div class="test-res ${v.test.ok?'oklist':'errlist'}">${esc(v.test.msg)}</div>`:''}
+    </div>
+    <div class="set-sec">
+      <h3>日報與通知</h3>
+      <p class="desc">「回報說明開頭」是員工回報說明的第一句。</p>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>回報說明開頭</label><input class="inp" data-bind="st.salutation" value="${esc(v.salutation)}" placeholder="今日工作進度報告如下："></div>
+        <div class="field"><label>未寄日報自動提醒時間<span class="opt">提醒當天沒寄日報的員工</span></label><select class="inp" data-bind="st.reminderTime">${Array.from({length:24},(_,i)=>pad2(18+Math.floor(i/4))+':'+pad2((i%4)*15)).map(t=>`<option ${t===v.reminderTime?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>每天早上寄摘要的時間</label><select class="inp" data-bind="st.digestHour">${Array.from({length:24},(_,h)=>`<option value="${h}" ${String(h)===String(v.digestHour)?'selected':''}>${pad2(h)}:00</option>`).join('')}</select></div>
+        <div class="field full"><label>日報收件人<span class="opt">留空＝寄給該員工的負責主管；多個 Email 用逗號分隔</span></label><input class="inp" data-bind="st.reportTo" value="${esc(v.reportTo)}" placeholder="manager@gmail.com"></div>
+      </div>
+    </div>
+    <div class="set-sec">
+      <h3>系統</h3>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>系統名稱</label><input class="inp" data-bind="st.title" value="${esc(v.title)}"></div>
+        <div class="field"><label>系統網址<span class="opt">信件裡「開啟系統」按鈕用</span></label><input class="inp" data-bind="st.url" value="${esc(v.url)}" placeholder="部署後的 …/exec 網址"></div>
+      </div>
+    </div>
+    <div class="form-foot"><span></span><button class="btn primary" data-act="saveSettings">儲存設定</button></div>
+  </section>`;
+}
+
+/* ═════════ AI 顯示 ═════════ */
+function mdHtml(text){
+  const out=[]; let inList=false;
+  const inl=x=>esc(x).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  String(text||'').split('\n').forEach(raw=>{
+    const line=raw.trim();
+    const li=line.match(/^[-*•]\s+(.*)$/)||line.match(/^\d+[.)、]\s+(.*)$/);
+    if(li){ if(!inList){ out.push('<ul>'); inList=true; } out.push('<li>'+inl(li[1])+'</li>'); return; }
+    if(inList){ out.push('</ul>'); inList=false; }
+    if(!line) return;
+    const h=line.match(/^#{1,4}\s+(.*)$/);
+    out.push(h?'<h4>'+inl(h[1])+'</h4>':'<p>'+inl(line)+'</p>');
+  });
+  if(inList) out.push('</ul>');
+  return out.join('');
+}
+const SPARK='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg>';
+function aiRangeHtml(){
+  const r=S.aiRange||(S.aiRange={from:quickRange('本週')[0],to:S.today,who:'',text:'',loading:false});
+  const days=r.from&&r.to&&r.from<=r.to?dayDiff(r.from,r.to)+1:0;
+  const curKey=r.from+'|'+r.to+'|'+r.who;
+  return `<section class="panel" style="margin-bottom:24px">
+    <div class="panel-head"><h2>AI 辦理狀況分析</h2><span class="badge">主管</span></div>
+    <div class="range-row">
+      <div class="field"><label>開始日期</label><input class="inp" type="date" data-bind="ar.from" value="${esc(r.from)}" max="${S.today}"></div>
+      <div class="field"><label>結束日期</label><input class="inp" type="date" data-bind="ar.to" value="${esc(r.to)}" max="${S.today}"></div>
+      <div class="field"><label>對象</label><select class="inp" data-bind="ar.who"><option value="">全部員工</option>${S.people.map(p=>`<option ${r.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="pills" style="margin-bottom:6px">${QUICK.map(k=>{ const q=quickRange(k); return `<button class="pill ${q[0]===r.from&&q[1]===r.to?'on':''}" data-act="arQuick" data-v="${k}">${k}</button>`; }).join('')}</div>
+      <button class="btn ai" data-act="aiRange" ${r.loading?'disabled':''} style="margin-bottom:2px">${r.loading?'<span class="spin"></span> 分析中…':SPARK+' AI 分析'}</button>
+    </div>
+    <div class="range-hint">${days?`📅 分析期間：<b>${mdw(r.from)}</b> ～ <b>${mdw(r.to)}</b>，共 ${days} 天｜對象：<b>${r.who?esc(r.who):'全部員工'}</b>`:'<span style="color:#C23A72">請選擇正確的日期區間（開始日期不能晚於結束日期）</span>'}
+      ${r.text&&r.key!==curKey&&days?'<span class="stale">條件已變更，按「AI 分析」重新產生</span>':''}${!r.text&&days&&!r.loading?'<span class="muted">　選好後按「AI 分析」開始</span>':''}</div>
+    ${r.text?`<div class="ai-box" style="margin-top:18px"><div class="ai-tag">${SPARK} AI 分析　${esc(r.shownRange||'')}</div>${mdHtml(r.text)}</div>
+      <div style="margin-top:10px"><button class="btn sm" data-act="copyAi">複製分析內容</button></div>`:''}
+  </section>`;
+}
+const QUICK=['本週','上週','本月','近 30 天'];
+function quickRange(k){
+  const t=S.today, dow=(new Date(t+'T00:00').getDay()+6)%7, mon=addDays(t,-dow);
+  if(k==='本週') return [mon,t];
+  if(k==='上週') return [addDays(mon,-7),addDays(mon,-1)];
+  if(k==='本月') return [t.slice(0,8)+'01',t];
+  return [addDays(t,-29),t];
+}
+function mdw(day){ const d=new Date(day+'T00:00'); return (d.getMonth()+1)+'/'+d.getDate()+'（'+'日一二三四五六'[d.getDay()]+'）'; }
+function addDays(day,n){ const d=new Date(day+'T00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function copyText(txt,msg){
+  const ok=()=>toast(msg||'已複製');
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(()=>fallbackCopy(txt,ok));
+  else fallbackCopy(txt,ok);
+}
+function fallbackCopy(txt,ok){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} ta.remove(); ok(); }
+
+function projDatalist(){ return `<datalist id="projList">${S.projects.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>`; }
+
+/* ═════════ 統計圖表（主管） ═════════ */
+function bucket(t){ if(t.status==='完成') return 'done'; if(t.status==='待確認') return 'review'; if(t.status==='未開始') return 'todo'; return 'active'; }
+function agg(list){
+  const a={total:list.length,done:0,review:0,active:0,todo:0,od:0};
+  list.forEach(t=>{ a[bucket(t)]++; if(isOverdue(t)) a.od++; });
+  a.rate=a.total?Math.round(a.done/a.total*100):0;
+  return a;
+}
+function inPeriod(t){
+  const p=S.sf.period;
+  if(p==='全部') return true;
+  if(!t.assignedAt) return false;
+  if(p==='本週'){ const d=t.assignedAt.slice(0,10); return d>=quickRange('本週')[0] && d<=S.today; }
+  if(p==='本月') return t.assignedAt.slice(0,7)===S.today.slice(0,7);
+  if(p==='近 30 天') return dayDiff(t.assignedAt,S.today)<=30;
+  return true;
+}
+function ring(a,color){
+  const r=52, C=2*Math.PI*r, gap=a.done&&a.review?3:0;
+  const d=a.total?a.done/a.total:0, rv=a.total?a.review/a.total:0;
+  const arc=(len,off,col,tip)=>len>0?`<circle cx="70" cy="70" r="${r}" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${Math.max(0,len)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)" data-tip="${tip}"/>`:'';
+  return `<svg class="ring" viewBox="0 0 140 140" role="img" aria-label="完成度 ${a.rate}%">
+    <circle cx="70" cy="70" r="${r}" fill="none" stroke="#EDEDF2" stroke-width="16"/>
+    ${arc(C*d-gap,0,'#14917F','完成 '+a.done+' 件')}
+    ${arc(C*rv-gap,C*d,'#C98A00','待確認 '+a.review+' 件')}
+    <text x="70" y="72" text-anchor="middle" class="n">${a.rate}%</text>
+    <text x="70" y="93" text-anchor="middle" class="s">完成度</text></svg>`;
+}
+function ringBox(title,a,cls){
+  return `<div class="ringbox ${cls}">${ring(a)}<div><h3>${title}</h3><div class="rlist">
+    <div>已完成 <b>${a.done}</b> / 共 <b>${a.total}</b> 件</div>
+    <div>待主管確認 <b>${a.review}</b> 件</div>
+    <div>執行中 <b>${a.active}</b>・未開始 <b>${a.todo}</b></div>
+    <div style="color:${a.od?'#C23A72':'inherit'}">逾期 <b style="color:inherit">${a.od}</b> 件</div></div></div></div>`;
+}
+function stackRow(label,swatch,a,isAvatar){
+  const segs=SEG.filter(s=>a[s[0]]>0).map(s=>`<i style="flex:${a[s[0]]};background:${s[2]}" data-tip="${esc(label)}｜${s[1]} ${a[s[0]]} 件（${Math.round(a[s[0]]/a.total*100)}%）"></i>`).join('');
+  return `<div class="row"><div class="nm">${isAvatar?avatar(label):`<i class="sw" style="background:${swatch}"></i>`}<span title="${esc(label)}">${esc(label)}</span></div>
+    <div class="sbar">${segs}</div>
+    <div class="num"><b>${a.rate}%</b>　${a.done}/${a.total}${a.od?`<span class="odn">逾期 ${a.od}</span>`:''}</div></div>`;
+}
+const legendHtml=()=>`<div class="legend">${SEG.map(s=>`<span><i style="background:${s[2]}"></i>${s[1]}</span>`).join('')}<span style="color:var(--faint)">執行中＝進行中、等待外部、暫停</span></div>`;
+function dataTable(rows,first){
+  return `<details class="tbl"><summary>查看數字表</summary><table class="data"><thead><tr><th>${first}</th><th>總數</th><th>完成</th><th>待確認</th><th>執行中</th><th>未開始</th><th>逾期</th><th>完成度</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${esc(r.k)}</td><td>${r.a.total}</td><td>${r.a.done}</td><td>${r.a.review}</td><td>${r.a.active}</td><td>${r.a.todo}</td><td>${r.a.od}</td><td>${r.a.rate}%</td></tr>`).join('')}</tbody></table></details>`;
+}
+
+function statsPage(){ return (isMgr(S.me)?aiRangeHtml():'')+statsCore(); }
+function statsCore(){
+  let list=S.tasks.filter(inPeriod);
+  if(S.sf.src!=='全部') list=list.filter(t=>t.source===S.sf.src);
+  if(S.sf.who) list=list.filter(t=>t.assignee===S.sf.who);
+  const fp=(k,opts)=>opts.map(o=>`<button class="pill ${S.sf[k]===o?'on':''}" data-act="sf" data-k="${k}" data-v="${o}">${o}</button>`).join('');
+  const all=agg(list);
+  const projT=list.filter(t=>t.type==='專案執行'), tempT=list.filter(t=>t.type==='臨時代辦');
+  const pa=agg(projT), ta=agg(tempT);
+  const projRows=[...new Set(projT.map(t=>t.project||'未分類'))]
+    .map(k=>({k,a:agg(projT.filter(t=>(t.project||'未分類')===k))}))
+    .sort((x,y)=>y.a.total-x.a.total||x.k.localeCompare(y.k));
+  const personRows=S.people.map(p=>({k:p.name,a:agg(list.filter(t=>t.assignee===p.name))})).filter(r=>r.a.total);
+  const filters=`<div class="filters"><div class="fgroup"><span class="lbl">期間</span>${fp('period',['全部','本週','本月','近 30 天'])}<span class="muted" style="font-size:12.5px">依指派日期</span></div>
+    <div class="fgroup"><span class="lbl">來源</span>${fp('src',['全部','主管交辦','自行新增'])}</div>
+    <div class="fgroup"><span class="lbl">承辦人</span><select class="inp" data-bind="sfwho" style="width:auto;padding:6px 10px"><option value="">全部人員</option>${S.people.map(p=>`<option ${S.sf.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div></div>
+    ${S.sf.who||S.sf.period!=='全部'||S.sf.src!=='全部'?`<div class="fnote">🔍 目前已篩選 ${[S.sf.period!=='全部'?'期間：'+S.sf.period:'',S.sf.src!=='全部'?'來源：'+S.sf.src:'',S.sf.who?'承辦人：'+S.sf.who:''].filter(Boolean).map(c=>`<span class="fc">${esc(c)}</span>`).join('')}<span class="cnt2">共 ${list.length} 件</span><button class="btn sm amber" data-act="clearSf">清除篩選</button></div>`:''}`;
+  if(!list.length) return `<section class="panel"><div class="panel-head"><h2>統計圖表</h2></div>${filters}<div class="empty">這個期間沒有工作</div></section>`;
+  return `<section class="panel">
+    <div class="panel-head"><h2>統計圖表</h2></div>${filters}
+    <div class="tiles">
+      <div class="tile c-blue"><div class="k">工作總數</div><div class="v">${all.total}</div></div>
+      <div class="tile c-teal"><div class="k">整體完成度</div><div class="v">${all.rate}<small>%</small></div></div>
+      <div class="tile c-purple"><div class="k">個案工作完成度</div><div class="v">${pa.rate}<small>%</small></div></div>
+      <div class="tile c-pink"><div class="k">臨時交辦完成度</div><div class="v">${ta.rate}<small>%</small></div></div>
+      <div class="tile c-amber"><div class="k">待我確認</div><div class="v">${all.review}</div></div>
+      <div class="tile c-orange"><div class="k">逾期</div><div class="v">${all.od}</div></div>
+    </div>
+    <div class="rings">${ringBox('個案工作（專案執行）',pa,'proj')}${ringBox('臨時交辦',ta,'temp')}</div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>各專案完成度</h2></div>
+    ${legendHtml()}
+    <div class="rows">${projRows.map(r=>stackRow(r.k,projColorByName(r.k),r.a)).join('')}
+      ${tempT.length?stackRow('臨時交辦',TEMP_COLOR,ta):''}</div>
+    ${dataTable([...projRows,...(tempT.length?[{k:'臨時交辦',a:ta}]:[])],'專案')}
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>各承辦人完成度</h2></div>
+    ${legendHtml()}
+    <div class="rows">${personRows.map(r=>stackRow(r.k,'',r.a,true)).join('')}</div>
+    ${dataTable(personRows,'承辦人')}
+  </section>`;
+}
+
+/* ═════════ 視窗 ═════════ */
+function renderModal(){
+  const m=S.modal, root=$('#modal');
+  if(!m){ root.innerHTML=''; return; }
+  const t=m.id?S.tasks.find(x=>x.id===m.id):null;
+  const dc=t?projColor(t):(m.color||'#2D5BE3');
+  const shell=(title,sub,body,foot,wide)=>`<div class="overlay" data-act="closeModal"><div class="dialog ${wide?'wide':''}" data-act="noop" style="--dc:${dc}">
+    <div class="d-head"><div><h3>${title}</h3>${sub?`<div class="sub">${sub}</div>`:''}</div><button class="x" data-act="closeModal">×</button></div>
+    <div class="d-body">${body}</div>${foot?`<div class="d-foot">${foot}</div>`:''}</div></div>`;
+  const sub=t?esc((t.project?t.project+'｜':'')+t.content):'';
+  const cancel=`<button class="btn" data-act="closeModal">取消</button>`;
+  let html='';
+  if(m.kind==='add'){
+    const mgrs=managers();
+    html=shell('新增工作','新增給自己，主管會在團隊總覽看到',`<div class="form-grid">
+      <div class="field full"><label>類型</label><div class="pills">${['專案執行','臨時代辦'].map(v=>`<button class="pill ${m.type===v?'on':''}" data-act="addType" data-v="${v}"><span class="dot" style="background:${v==='臨時代辦'?TEMP_COLOR:'#2D5BE3'}"></span>${v}</button>`).join('')}</div></div>
+      <div class="field full"><label>專案名稱${m.type==='臨時代辦'?'<span class="opt">可留空</span>':''}</label><input class="inp" list="projList" data-bind="m.project" value="${esc(m.project)}" placeholder="例：北市圖資案">${projDatalist()}</div>
+      <div class="field full"><label>工作內容</label><textarea class="inp" data-bind="m.content">${esc(m.content)}</textarea></div>
+      <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="m.due" value="${esc(m.due)}" min="${S.today}"></div>
+      ${!isMgr(S.me)&&mgrs.length>1?`<div class="field"><label>回報主管</label><select class="inp" data-bind="m.owner">${mgrs.map(p=>`<option ${m.owner===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`
+        :`<div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="m.link" value="${esc(m.link)}" placeholder="https:\/\/"></div>`}
+      </div>`, cancel+`<button class="btn primary" data-act="submitAdd">新增</button>`);
+  }
+  else if(m.kind==='report'){
+    html=shell('回報進度',sub,`
+      <div class="field"><label>狀態</label><div class="pills">${['進行中','等待外部','暫停'].map(s=>`<button class="pill ${m.status===s?'on':''}" data-act="repStatus" data-v="${s}"><span class="dot" style="background:${STATUS_DOT[s]}"></span>${s}</button>`).join('')}</div></div>
+      ${m.status==='等待外部'?`<div class="field" style="margin-top:16px"><label>等待對象</label><input class="inp" data-bind="m.waitingFor" value="${esc(m.waitingFor)}" placeholder="例：叡揚、住都中心"></div>`:''}
+      <div class="field" style="margin-top:16px"><label class="check" style="color:var(--ink);font-weight:600"><input type="checkbox" data-bind="m.useProg" ${m.useProg?'checked':''}> 填寫進度 %<span class="opt" style="font-weight:400;color:var(--faint);margin-left:4px">沒有明確進度可不填</span></label>
+        ${m.useProg?`<div class="prog-row" style="margin-top:8px"><input type="range" min="0" max="100" step="5" data-bind="m.progress" value="${m.progress===''?0:m.progress}"><span class="prog-val" id="progVal">${m.progress===''?0:m.progress}%</span></div>`:''}</div>
+      <div class="field" style="margin-top:16px"><label>回報內容</label><textarea class="inp" data-bind="m.content" placeholder="例：叡揚報價單尚未提供，持續追蹤">${esc(m.content)}</textarea></div>`,
+      cancel+`<button class="btn primary" data-act="submitReport">送出回報</button>`);
+  }
+  else if(m.kind==='finish'){
+    const cfg={
+      submit:['提報完成','送出後由主管確認才算完成','完成說明','例：契約已寄出並通知羅副總','btn amber','送主管確認'],
+      confirm:['確認完成','承辦人：'+(t?t.assignee:''),'確認說明','選填','btn teal','✓ 確認完成'],
+      direct:['直接標記完成','承辦人：'+(t?t.assignee:''),'完成說明','選填','btn teal','標記完成'],
+      reject:['退回','工作會回到「進行中」，並通知承辦人','退回原因','例：會議紀錄缺第三案討論內容','btn pink','退回']
+    }[m.mode];
+    html=shell(cfg[0],sub+'<br>'+esc(cfg[1]),`${t&&t.latest&&m.mode!=='submit'?`<div class="note">承辦人最新回報：${esc(t.latest)}</div>`:''}
+      <div class="field"><label>${cfg[2]}${m.mode==='reject'?'':'<span class="opt">選填</span>'}</label>
+      <textarea class="inp" data-bind="m.content" placeholder="${esc(cfg[3])}">${esc(m.content)}</textarea></div>`,
+      cancel+`<button class="${cfg[4]}" data-act="submitFinish">${cfg[5]}</button>`);  }
+  else if(m.kind==='reassign'){
+    html=shell('轉派工作',sub,`<div class="field"><label>新的承辦人</label><select class="inp" data-bind="m.to">
+      ${S.people.map(p=>`<option ${m.to===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`,
+      cancel+`<button class="btn primary" data-act="submitReassign">轉派並通知</button>`);
+  }
+  else if(m.kind==='avatar'){
+    html=shell('換造型','選一個喜歡的造型，大家在花園廣場都會看到',pzAvatarBody(m),cancel+`<button class="btn primary" data-act="pzSave">儲存造型</button>`,true);
+  }
+  else if(m.kind==='import'){
+    const n=m.rows.filter(r=>!r._err).length;
+    html=shell('匯入'+IMPORT_SPEC[m.what].label+'（預覽）','確認內容後再匯入',importModalBody(m),
+      cancel+`<button class="btn primary" data-act="doImport" ${n?'':'disabled'}>匯入 ${n} 列</button>`,true);
+  }
+  else if(m.kind==='importResult'){
+    html=shell('匯入結果','',`<div class="oklist">${esc(m.summary)}</div>${m.errors.length?`<div class="errlist">${m.errors.map(esc).join('<br>')}</div>`:''}`,
+      `<button class="btn primary" data-act="closeModal">完成</button>`,true);
+  }
+  else if(m.kind==='person'){
+    const editing=!!m.original;
+    html=shell(editing?'編輯人員':'新增人員',editing?esc(m.original):'',`<div class="form-grid">
+      <div class="field"><label>姓名</label><input class="inp" data-bind="m.name" value="${esc(m.name)}"></div>
+      <div class="field"><label>角色${S.isSuper?'':'<span class="opt">由管理者設定</span>'}</label>${S.isSuper&&!m.isSuperTarget?`<div class="pills">${['員工','主管'].map(r=>`<button class="pill ${m.role===r?'on':''}" data-act="personRole" data-v="${r}">${r}</button>`).join('')}</div>`:`<div style="padding:9px 0"><span class="role ${m.role==='主管'?'mgr':''}">${m.isSuperTarget?'管理者':m.role}</span></div>`}</div>
+      <div class="field"><label>直屬主管${S.isSuper?'<span class="opt">日報與通知會寄給他們</span>':'<span class="opt">由管理者設定</span>'}</label>${m.role==='主管'?'<div style="padding:9px 0;color:var(--faint)">主管不需要設定</div>':(S.isSuper?`<div class="pills">${(S.admin||[]).filter(x=>x.role==='主管'&&x.name!==m.original).map(x=>`<button class="pill ${supArr(m.supervisor).indexOf(x.name)>=0?'on':''}" data-act="toggleSup" data-v="${esc(x.name)}">${avatar(x.name)}${esc(x.name)}</button>`).join('')||'<span class="muted">還沒有主管</span>'}</div><div class="muted" style="font-size:12.5px;margin-top:6px">可複選；都不選＝通知所有主管</div>`:`<div style="padding:9px 0">${m.supervisor?esc(m.supervisor):'<span class="muted">未指定</span>'}</div>`)}</div>
+      <div class="field"><label>性別<span class="opt">花園廣場的人物造型用</span></label><div class="pills">${['男','女'].map(g=>`<button class="pill ${m.gender===g?'on':''}" data-act="personGender" data-v="${g}">${g}</button>`).join('')}</div></div>
+      <div class="field"><label>Email<span class="opt">收通知信用</span></label><input class="inp" type="email" data-bind="m.email" value="${esc(m.email)}"></div>
+      <div class="field"><label>LINE 名稱<span class="opt">選填</span></label><input class="inp" data-bind="m.line" value="${esc(m.line)}"></div>
+      <div class="field"><label>帳號</label><input class="inp" data-bind="m.account" value="${esc(m.account)}" autocomplete="off"></div>
+      <div class="field"><label>密碼${editing?'<span class="opt">留空表示不變</span>':''}</label><input class="inp" type="text" data-bind="m.password" value="${esc(m.password)}" autocomplete="off" placeholder="${editing?'輸入新密碼即可重設':'至少 4 個字'}"></div>
+      </div>${editing&&m.original!==m.name?'<div class="note" style="margin-top:14px">改名後，他名下的工作會一起改成新名字。</div>':''}`,
+      cancel+`<button class="btn primary" data-act="savePerson">儲存</button>`);
+  }
+  else if(m.kind==='delPerson'){
+    html=shell('刪除人員？',esc(m.name),`<div class="note" style="background:var(--pink-soft);color:#A2275C">刪除後此人無法登入。若他還有未完成的工作，需要先轉派。</div>`,
+      cancel+`<button class="btn danger" data-act="doDelPerson">確定刪除</button>`);
+  }
+  else if(m.kind==='delete'){
+    html=shell('刪除工作？',sub,`<div class="note" style="background:var(--pink-soft);color:#A2275C">刪除後無法復原，但回報歷程會保留一筆刪除紀錄。</div>`,
+      cancel+`<button class="btn danger" data-act="submitDelete">確定刪除</button>`);
+  }
+  else if(m.kind==='text'){
+    html=shell('今日回報',S.reportedToday?'今天已寄過日報，再寄一次會寄出最新版本給主管':'可複製使用，或直接寄日報給主管',
+      `<div class="rep-sec"><span class="n">1</span>回報說明<button class="btn sm" data-act="copy" style="margin-left:auto">複製</button></div>
+       <textarea class="inp report-text" id="repText" data-bind="m.text" style="min-height:220px">${esc(m.text)}</textarea>
+       ${isMgr(S.me)?`<div class="rep-sec"><span class="n">2</span>AI 進度摘要<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">可修改</span>
+         ${S.aiEnabled?`<button class="btn sm ai" data-act="aiDaily" style="margin-left:auto" ${m.aiLoading?'disabled':''}>${m.aiLoading?'<span class="spin"></span> 彙整中':SPARK+' AI 彙整'}</button>`:''}</div>
+       ${S.aiEnabled?`<textarea class="inp" data-bind="m.ai" style="min-height:110px" placeholder="按「AI 彙整」自動產生；留空的話寄出時會自動產生">${esc(m.ai)}</textarea>`
+         :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含回報說明與工作表格。</div>'}`
+       :`<div class="note" style="margin-top:14px">寄出後，主管收到的日報會附上工作明細表格${S.aiEnabled?'與系統自動產生的進度摘要':''}。請先在系統上把每件工作的進度更新好再寄出。</div>`}
+       <div class="rep-sec"><span class="n">${isMgr(S.me)?3:2}</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`,
+      `<button class="btn" data-act="closeModal">關閉</button><button class="btn primary" data-act="sendReport" ${m.sending?'disabled':''}>${m.sending?'<span class="spin"></span> 寄送中…':'寄出日報給主管'}</button>`,true);
+  }
+  else if(m.kind==='detail' && t){
+    const kv=[['編號','#'+t.id],['類型',t.type],['來源',t.source],['專案',t.project||'—'],['承辦人',t.assignee],['負責主管',t.owner||'—'],['狀態',t.status+(t.waitingFor&&t.status==='等待外部'?'（'+t.waitingFor+'）':'')],
+      ['進度',hasProg(t)?t.progress+'%':'—'],['需完成日期',t.due||'—'],['指派時間',t.assignedAt||'—'],['開始時間',t.startedAt||'—'],['提報時間',t.submittedAt||'—'],['完成時間',t.doneAt||'—']];
+    if(isMgr(S.me)) kv.push(['完成通知',t.notifyDone?'🔔 員工提報完成時寄信通知':'不寄信（在待確認清單查看）']);
+    if(t.link) kv.push(['連結',`<a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a>`]);
+    const hist=m.history==null?'<div style="color:var(--faint);font-size:13.5px">載入中…</div>':
+      (m.history.length?m.history.map(h=>`<div class="h-item"><span class="t">${esc(h.time.slice(5))}</span><span><b>${esc(h.actor)}</b>｜${esc(h.status)}${h.progress!==''&&h.progress!=null?' '+h.progress+'%':''}${h.source&&h.source!=='網頁'?`<span class="src">${esc(h.source)}</span>`:''}${h.content?'<br>'+esc(h.content):''}</span></div>`).join(''):'<div style="color:var(--faint);font-size:13.5px">尚無紀錄</div>');
+    const foot=isMgr(S.me)?`<button class="btn pink left" data-act="askDelete" data-id="${t.id}">刪除</button>${t.status!=='完成'?`<label class="check" style="margin-right:auto;color:var(--ink)"><input type="checkbox" data-act="toggleNotify" data-id="${t.id}" ${t.notifyDone?'checked':''}> 🔔 員工提報完成時寄信通知我</label>`:''}<button class="btn" data-act="closeModal">關閉</button>`:'';
+    html=shell(esc(t.content),t.project?esc(t.project):'臨時代辦',
+      `<dl class="kv">${kv.map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='連結'?r[1]:esc(r[1])}</dd>`).join('')}</dl>
+       ${t.latest?`<div style="margin-top:14px;background:${hexA(dc,.08)};border-left:3px solid ${dc};border-radius:4px;padding:10px 12px;font-size:14px">${esc(t.latest)}</div>`:''}
+       <div class="hist"><h4>回報歷程</h4>${hist}</div>`,foot,true);
+  }
+  root.innerHTML=html;
+  if(m.kind==='avatar') pzPaintGrid();
+}
+
+/* ═════════ 動作 ═════════ */
+const A = {
+  noop(){},
+  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; if(S.tab==='settings') S.sets=null; render(); window.scrollTo(0,0); },
+  f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
+  toggleNotify(el,e){
+    const on=el.checked, id=el.dataset.id;
+    api('api_setNotifyDone',S.token,id,on).then(res=>{ applyData(res); const m=S.modal; render(); if(m&&m.kind==='detail'){ S.modal=m; renderModal(); } toast(on?'已設定：員工提報完成時寄信通知您':'已設定：完成時不寄信'); }).catch(onErr);
+  },
+  pzAvatar(){ pzAvatarModal(); },
+  pzGender(el){ S.modal.gender=el.dataset.v; renderModal(); },
+  pzPick(el){ S.modal.avatar=Number(el.dataset.v); document.querySelectorAll('.pz-opt').forEach(b=>b.classList.toggle('on',b===el)); },
+  pzSave(){
+    const m=S.modal;
+    api('api_setAvatar',S.token,m.avatar,m.gender).then(d=>{ S.modal=null; renderModal(); pzApply(d); toast('造型已更新，大家都看得到囉！'); }).catch(onErr);
+  },
+  pzClose(){ PZ.sel=null; pzShowCard(null); },
+  pzFind(){ const c=PZ.chars[S.me]; if(!c) return; PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  clearSf(){ S.sf={period:'全部',src:'全部',who:''}; render(); },
+  tileF(el){ const v=el.dataset.v; S.f.status=(S.f.status===v&&v!=='未完成')?'未完成':v; render(); },
+  clearF(){ S.f={...F_DEFAULT}; render(); },
+  af(el){ S.af.status=el.dataset.v; render(); },
+  clearAf(){ S.af={q:'',status:'未完成'}; render(); },
+  sf(el){ S.sf[el.dataset.k]=el.dataset.v; render(); },
+  logout(){ const tk=S.token; logoutLocal(); render(); api('api_logout',tk).catch(()=>{}); },
+  closeModal(el,e){ if(e.target!==el) return; S.modal=null; renderModal(); },
+  detail(el){
+    const id=el.dataset.id; S.modal={kind:'detail',id,history:null}; renderModal();
+    api('api_history',S.token,id).then(h=>{ if(S.modal&&S.modal.id===id){ S.modal.history=h; renderModal(); } }).catch(()=>{ if(S.modal&&S.modal.id===id){ S.modal.history=[]; renderModal(); } });
+  },
+  start(el){ run('api_start',[el.dataset.id],'已開始計時'); },
+  report(el){
+    const t=S.tasks.find(x=>x.id===el.dataset.id);
+    S.modal={kind:'report',id:t.id,status:['進行中','等待外部','暫停'].includes(t.status)?t.status:'進行中',useProg:hasProg(t),progress:hasProg(t)?t.progress:'',content:'',waitingFor:t.waitingFor||''};
+    renderModal();
+  },
+  repStatus(el){ S.modal.status=el.dataset.v; renderModal(); },
+  submitReport(){
+    const m=S.modal, t=S.tasks.find(x=>x.id===m.id);
+    const prog=m.useProg?Number(m.progress||0):'';
+    if(!m.content.trim() && m.status===t.status && (prog===''||prog===t.progress)) return toast('請填寫回報內容，或調整狀態／進度',true);
+    run('api_report',[m.id,{status:m.status,progress:prog,content:m.content.trim(),waitingFor:m.waitingFor.trim()}],'已回報');
+  },
+  submit(el){ S.modal={kind:'finish',mode:'submit',id:el.dataset.id,content:''}; renderModal(); },
+  confirm(el){ S.modal={kind:'finish',mode:'confirm',id:el.dataset.id,content:''}; renderModal(); },
+  mgrDone(el){ S.modal={kind:'finish',mode:'direct',id:el.dataset.id,content:''}; renderModal(); },
+  reject(el){ S.modal={kind:'finish',mode:'reject',id:el.dataset.id,content:''}; renderModal(); },
+  submitFinish(){
+    const m=S.modal, c=m.content.trim();
+    if(m.mode==='reject'){
+      if(!c) return toast('請填寫退回原因',true);
+      return run('api_report',[m.id,{status:'進行中',progress:'',content:'退回：'+c}],'已退回並通知承辦人');
+    }
+    if(m.mode==='submit') return run('api_report',[m.id,{status:'待確認',progress:'',content:c}],'已提報，等待主管確認');
+    run('api_report',[m.id,{status:'完成',progress:'',content:c}],'已確認完成');
+  },
+  reassign(el){ const t=S.tasks.find(x=>x.id===el.dataset.id); S.modal={kind:'reassign',id:t.id,to:t.assignee}; renderModal(); },
+  submitReassign(){ run('api_reassign',[S.modal.id,S.modal.to],'已轉派'); },
+  askDelete(el){ S.modal={kind:'delete',id:el.dataset.id}; renderModal(); },
+  submitDelete(){ run('api_delete',[S.modal.id],'已刪除'); },
+  tpl(el){ downloadTemplate(el.dataset.v); },
+  pickFile(el){ if(el.dataset.v==='people'&&!S.admin){ loadAdmin().then(()=>pickFile('people')); return; } pickFile(el.dataset.v); },
+  doImport(){
+    const m=S.modal, rows=m.rows.filter(r=>!r._err).map(r=>{ const o={...r}; delete o._err; return o; });
+    const fn=m.what==='tasks'?'api_importTasks':'api_importPeople';
+    const args=m.what==='tasks'?[rows,!!m.notify]:[rows];
+    const skipped=m.rows.length-rows.length;
+    document.body.classList.add('busy');
+    api(fn,S.token,...args).then(res=>{
+      document.body.classList.remove('busy');
+      applyData(res.data); if(res.people) S.admin=res.people;
+      const summary=m.what==='tasks'?`已匯入 ${res.added} 件工作`:`新增 ${res.added} 人、更新 ${res.updated} 人`;
+      S.modal={kind:'importResult',summary:summary+(skipped?`；預覽時已略過 ${skipped} 列`:''),errors:res.errors||[]};
+      render();
+    }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  newPerson(){ S.modal={kind:'person',original:'',name:'',role:'員工',email:'',line:'',account:'',password:'',supervisor:'',gender:'',color:'#8A55D6'}; renderModal(); },
+  editPerson(el){ const p=S.admin.find(x=>x.name===el.dataset.v); S.modal={kind:'person',original:p.name,name:p.name,role:p.role,isSuperTarget:!!p.super,email:p.email,line:p.line,account:p.account,password:'',supervisor:p.supervisor||'',gender:p.gender||'',color:'#8A55D6'}; renderModal(); },
+  toggleSup(el){ const a=supArr(S.modal.supervisor), n=el.dataset.v, i=a.indexOf(n); if(i>=0) a.splice(i,1); else a.push(n); S.modal.supervisor=a.join('、'); renderModal(); },
+  personGender(el){ S.modal.gender=el.dataset.v; renderModal(); },
+  personRole(el){ S.modal.role=el.dataset.v; renderModal(); },
+  savePerson(){
+    const m=S.modal;
+    if(!m.name.trim()) return toast('請填姓名',true);
+    if(!m.original && m.account.trim() && !m.password) return toast('有帳號就要設定密碼',true);
+    document.body.classList.add('busy');
+    api('api_savePerson',S.token,{name:m.name.trim(),role:m.isSuperTarget?'管理者':m.role,email:m.email.trim(),line:m.line.trim(),account:m.account.trim(),password:m.password,supervisor:m.role==='主管'?'':m.supervisor,gender:m.gender},m.original)
+      .then(res=>{ document.body.classList.remove('busy'); S.admin=res.people; applyData(res.data); S.modal=null; render(); toast('已儲存'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  askDelPerson(el){ S.modal={kind:'delPerson',name:el.dataset.v,color:'#E0508A'}; renderModal(); },
+  doDelPerson(){
+    document.body.classList.add('busy');
+    api('api_deletePerson',S.token,S.modal.name)
+      .then(res=>{ document.body.classList.remove('busy'); S.admin=res.people; applyData(res.data); S.modal=null; render(); toast('已刪除'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  addTask(){ const mg=managers(); S.modal={kind:'add',color:'#8A55D6',type:'專案執行',project:'',content:'',due:'',link:'',owner:mg[0]?mg[0].name:''}; renderModal(); },
+  addType(el){ S.modal.type=el.dataset.v; renderModal(); },
+  submitAdd(){
+    const m=S.modal;
+    if(m.type==='專案執行' && !m.project.trim()) return toast('專案執行請填專案名稱',true);
+    if(!m.content.trim()) return toast('請填寫工作內容',true);
+    if(!m.due) return toast('請選擇需完成日期',true);
+    run('api_createTask',[{type:m.type,project:m.project,content:m.content,due:m.due,link:m.link,owner:m.owner,assignee:S.me,notify:false}],'已新增');
+  },
+  genReport(){
+    const list=S.tasks.filter(t=>t.assignee===S.me && (t.status!=='完成' || (t.doneAt && t.doneAt.slice(0,10)===S.today)));
+    if(!list.length) return toast('目前沒有工作',true);
+    S.modal={kind:'text',color:'#2D5BE3',text:buildReportText(list),ai:'',count:list.length}; renderModal();
+  },
+  copy(){ copyText($('#repText').value,'已複製回報說明'); },
+  aiDaily(){
+    const m=S.modal; m.aiLoading=true; renderModal();
+    api('api_aiDaily',S.token).then(txt=>{ if(S.modal===m){ m.ai=txt; m.aiLoading=false; renderModal(); } })
+      .catch(err=>{ m.aiLoading=false; if(S.modal===m) renderModal(); onErr(err); });
+  },
+  sendReport(){
+    const m=S.modal; m.sending=true; renderModal();
+    api('api_sendDailyReport',S.token,m.text,m.ai).then(res=>{
+      applyData(res.data); S.modal=null; render(); toast('日報已寄給 '+res.sentTo.join('、'));
+    }).catch(err=>{ m.sending=false; if(S.modal===m) renderModal(); onErr(err); });
+  },
+  aiPerson(el){
+    const n=el.dataset.v; S.aiPerson[n]={loading:true,text:(S.aiPerson[n]||{}).text||''}; render();
+    api('api_aiPerson',S.token,n).then(txt=>{ S.aiPerson[n]={loading:false,text:txt}; render(); })
+      .catch(err=>{ S.aiPerson[n].loading=false; render(); onErr(err); });
+  },
+  arQuick(el){ const r=S.aiRange, q=quickRange(el.dataset.v); r.from=q[0]; r.to=q[1]; render(); toast('已套用'+el.dataset.v+'：'+mdw(q[0])+' ～ '+mdw(q[1])); },
+  aiRange(){
+    const r=S.aiRange;
+    if(!r.from||!r.to||r.from>r.to) return toast('請選擇正確的日期區間',true);
+    r.loading=true; render();
+    const key=r.from+'|'+r.to+'|'+r.who;
+    api('api_aiRange',S.token,r.from,r.to,r.who).then(txt=>{ r.loading=false; r.text=txt; r.key=key; r.shownRange=mdw(r.from)+' ～ '+mdw(r.to)+(r.who?'｜'+r.who:'｜全部員工'); render(); })
+      .catch(err=>{ r.loading=false; render(); onErr(err); });
+  },
+  copyAi(){ copyText(S.aiRange.text,'已複製分析內容'); },
+  testAi(){
+    const v=S.sets; if(!v.key.trim()&&!v.hasKey) return toast('請先貼上 API 金鑰',true);
+    v.testing=true; v.test=null; render();
+    api('api_testAi',S.token,v.key.trim(),v.model).then(txt=>{ v.testing=false; v.test={ok:true,msg:'連線成功，AI 回覆：'+txt+(v.key.trim()?'。記得按「儲存設定」。':'')}; render(); })
+      .catch(err=>{ v.testing=false; v.test={ok:false,msg:errMsg(err)}; render(); });
+  },
+  clearKey(){
+    document.body.classList.add('busy');
+    api('api_saveSettings',S.token,{clearKey:true}).then(res=>{ document.body.classList.remove('busy'); applyData(res.data); S.sets={...res.settings,key:'',test:null}; render(); toast('已移除金鑰'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  saveSettings(){
+    const v=S.sets;
+    document.body.classList.add('busy');
+    api('api_saveSettings',S.token,{key:v.key,model:v.model,salutation:v.salutation,title:v.title,reportTo:v.reportTo,url:v.url,digestHour:v.digestHour,reminderTime:v.reminderTime})
+      .then(res=>{ document.body.classList.remove('busy'); applyData(res.data); S.sets={...res.settings,key:'',test:null}; render(); toast('設定已儲存'); })
+      .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
+  },
+  formType(el){ S.form.type=el.dataset.v; render(); },
+  submitAssign(){
+    const f=S.form;
+    if(f.type==='專案執行' && !f.project.trim()) return toast('專案執行請填專案名稱',true);
+    if(!f.content.trim()) return toast('請填寫工作內容',true);
+    if(!f.assignee) return toast('請選擇承辦人',true);
+    if(!f.due) return toast('請選擇需完成日期',true);
+    run('api_createTask',[{...f}],'已指派給 '+f.assignee+(f.notify?'，並寄出通知':'')).then(()=>{
+      S.form={type:f.type,project:f.project,content:'',assignee:'',due:'',link:'',notify:f.notify,notifyDone:false}; render();
+    });
+  }
+};
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]'); if(!el) return;
+  const fn=A[el.dataset.act]; if(fn) fn(el,e);
+});
+function onBind(e){
+  const b=e.target.dataset&&e.target.dataset.bind; if(!b) return;
+  const val=e.target.type==='checkbox'?e.target.checked:e.target.value;
+  if(b==='q'){ S.f.q=val; $('#main').innerHTML=mainHtml(); return; }
+  if(b==='aq'){ S.af.q=val; const el=$('#assignList'); if(el) el.innerHTML=assignListHtml(); return; }
+  const [scope,key]=b.split('.');
+  if(scope==='login'){ S.login[key]=val; return; }
+  if(scope==='ar'){ S.aiRange[key]=val; if(e.type==='change') render(); return; }
+  if(scope==='st'){ S.sets[key]=val; return; }
+  if(b==='sfwho'){ S.sf.who=val; render(); return; }
+  if(scope==='form') S.form[key]=val;
+  if(scope==='m' && S.modal){
+    S.modal[key]=val;
+    if(key==='progress'){ const pv=$('#progVal'); if(pv) pv.textContent=val+'%'; }
+    if(key==='useProg'){ if(val&&S.modal.progress==='') S.modal.progress=0; renderModal(); }
+  }
+}
+document.addEventListener('input',onBind);
+document.addEventListener('change',e=>{ if(e.target.type==='checkbox'||e.target.tagName==='SELECT'||(e.target.type==='date'&&/^ar\./.test(e.target.dataset.bind||''))) onBind(e); });
+
+/* 圖表滑過提示 */
+const tip=$('#tip');
+document.addEventListener('mousemove',e=>{
+  const el=e.target.closest&&e.target.closest('[data-tip]');
+  if(!el){ tip.style.display='none'; return; }
+  tip.textContent=el.getAttribute('data-tip'); tip.style.display='block';
+  const w=tip.offsetWidth; let x=e.clientX+14; if(x+w>window.innerWidth-8) x=e.clientX-w-14;
+  tip.style.left=x+'px'; tip.style.top=(e.clientY+14)+'px';
+});
+
+/* ═════════ 預覽模式示範資料 ═════════ */
+const Demo=(()=>{
+  const pad=n=>String(n).padStart(2,'0');
+  const fd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const fdt=d=>fd(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  const now=()=>new Date();
+  const day=(n,h=9,m=0)=>{ const d=new Date(); d.setDate(d.getDate()+n); d.setHours(h,m,0,0); return d; };
+  let ppl=[{name:'正翰',role:'主管',super:true,email:'manager@example.com',line:'',account:'n821129x',password:'n821129x',supervisor:'',gender:'男',avatar:4},
+    {name:'佳穎',role:'主管',email:'lead@example.com',line:'',account:'lead',password:'lead',supervisor:'',gender:'女',avatar:12},
+    {name:'示範員工',role:'員工',email:'staff@example.com',line:'',account:'demo',password:'demo',supervisor:'佳穎',gender:'男',avatar:0},
+    {name:'晏晨',role:'員工',email:'yc@example.com',line:'晏晨',account:'yanchen',password:'1234',supervisor:'佳穎',gender:'女',avatar:0},
+    {name:'柏慶',role:'員工',email:'',line:'',account:'',password:'',supervisor:'正翰',gender:'男',avatar:0},
+    {name:'小美',role:'員工',email:'mei@example.com',line:'',account:'mei',password:'1234',supervisor:'正翰',gender:'女',avatar:0}];
+  const pub=()=>ppl.map(p=>({name:p.name,role:p.role,hasEmail:!!p.email}));
+  const adm=()=>ppl.map(p=>({name:p.name,role:p.role,super:!!p.super,email:p.email,line:p.line,account:p.account,hasPassword:!!p.password,supervisor:p.supervisor,gender:p.gender,avatar:p.avatar}));
+  const pos={};
+  const mk=(id,o)=>Object.assign({id,type:'專案執行',source:'主管交辦',project:'',content:'',owner:'正翰',assignee:'示範員工',due:fd(day(3)),assignedAt:fdt(day(-5)),startedAt:fdt(day(-4,10,20)),submittedAt:'',doneAt:'',updatedAt:fdt(day(-1)),status:'進行中',progress:'',latest:'',waitingFor:'',link:''},o);
+  const done=(o,d)=>Object.assign({status:'完成',startedAt:fdt(day(-d-4,10)),submittedAt:fdt(day(-d,16)),doneAt:fdt(day(-d,17)),assignedAt:fdt(day(-d-5)),due:fd(day(-d+1))},o);
+  let tasks=[
+    mk('T0001',{project:'國家住都中心-PMIS案',content:'客服確認及處理問題（每日回報）',latest:'昨日使用者詢問16人：帳號管理3、日報表6、預算書/預定進度3、估驗計價4',due:fd(day(0)),assignedAt:fdt(day(-20)),startedAt:fdt(day(-20,9,30)),link:'https:\/\/reurl.cc/jrv8RM'}),
+    mk('T0002',{project:'國家住都中心-PMIS案',content:'工程計價模組與工程稽查模組欄位與計算方式彙整',status:'等待外部',waitingFor:'住都中心',progress:100,latest:'各式欄位與計算方式已彙整完成，待中心確認整體價金算法',due:fd(day(5)),assignedAt:fdt(day(-26)),startedAt:fdt(day(-26,14)),link:'https:\/\/reurl.cc/qabq0g'}),
+    mk('T0003',{project:'建築模組案',content:'撰擬期末報告內容',latest:'與晏晨完成初稿，今日針對有問題部分修正',due:fd(day(0)),assignedAt:fdt(day(-12))}),
+    mk('T0004',{project:'建築模組案',content:'第三季執行委員會會議紀錄並併入報告書',progress:75,latest:'會議紀錄撰擬中，今日完成',due:fd(day(1)),assignedAt:fdt(day(-6))}),
+    mk('T0005',{project:'北市圖資案',content:'追蹤圖資轉檔進度',status:'等待外部',waitingFor:'叡揚',latest:'叡揚報價單尚未提供，持續追蹤',due:fd(day(-2)),assignedAt:fdt(day(-14))}),
+    mk('T0006',{project:'北市圖資案',content:'確認福國社宅初驗複驗總結會議紀錄與表單',status:'待確認',progress:100,latest:'會議紀錄與表單已確認完成',due:fd(day(0)),assignedAt:fdt(day(-3)),startedAt:fdt(day(-3,13)),submittedAt:fdt(day(0,8,50))}),
+    mk('T0007',{project:'王正源PMIS案(福星2)',content:'撰擬複委託契約(智剛)',progress:90,latest:'同步追蹤哆啦哥相關報價',due:fd(day(3)),assignedAt:fdt(day(-9))}),
+    mk('T0008',{project:'王正源PMIS案(華江)',content:'華江案契約初稿確認',status:'暫停',latest:'王副總表示目前暫滯，待工程案發包後續行追蹤',due:fd(day(20)),assignedAt:fdt(day(-15))}),
+    mk('T0009',done({project:'台北國際PMIS',content:'契約寄出並通知羅副總',latest:'契約已寄出並通知羅副總'},1)),
+    mk('T0010',{type:'臨時代辦',content:'協助柏慶處理帆宣ISO19650請款事宜',status:'未開始',startedAt:'',due:fd(day(2)),assignedAt:fdt(day(0,8,15))}),
+    mk('T0011',{project:'建築模組案',content:'期末報告圖表整理',assignee:'晏晨',progress:60,latest:'圖表初稿完成，調整格式中',due:fd(day(2)),assignedAt:fdt(day(-4))}),
+    mk('T0012',{type:'臨時代辦',content:'彙整本週各圖資案作業進度',assignee:'晏晨',status:'未開始',startedAt:'',due:fd(day(-1)),assignedAt:fdt(day(-3))}),
+    mk('T0013',done({project:'台北國際PMIS',content:'客製化表單內容對應',assignee:'晏晨',progress:100,latest:'表單對應完成'},4)),
+    mk('T0014',done({project:'北市圖資案',content:'力行社宅相關資料確認',assignee:'柏慶'},6)),
+    mk('T0015',done({type:'臨時代辦',content:'帆宣ISO19650稽核意見回覆上傳',assignee:'柏慶',latest:'已上傳稽核平台並通知BSI'},3)),
+    mk('T0016',done({type:'臨時代辦',content:'中經院小戰情中心資料更新',assignee:'晏晨'},2)),
+    mk('T0017',{project:'新北圖資案',content:'王正源複委託契約院內審核',assignee:'柏慶',status:'等待外部',waitingFor:'院內審核',due:fd(day(4)),assignedAt:fdt(day(-7))}),
+    mk('T0018',done({project:'新北圖資案',content:'皇昌主契約院內審核',assignee:'柏慶'},8)),
+    mk('T0019',{project:'臺北市造價要項案',content:'期初報告內文調整修正',assignee:'晏晨',source:'自行新增',progress:85,due:fd(day(1)),assignedAt:fdt(day(-5))}),
+    mk('T0020',{type:'臨時代辦',content:'整理客戶回饋給設計組',source:'自行新增',status:'進行中',due:fd(day(2)),assignedAt:fdt(day(-1)),startedAt:fdt(day(-1,14))}),
+    mk('T0021',done({project:'國家住都中心-PMIS案',content:'上週作業進度彙整',progress:100},5))
+  ];
+  let log=[]; let seq=tasks.length;
+  tasks.forEach(t=>log.push({time:t.assignedAt,id:t.id,actor:t.source==='自行新增'?t.assignee:t.owner,status:'未開始',progress:'',content:t.source==='自行新增'?'自行新增':'指派給 '+t.assignee,source:'網頁'}));
+  const addLog=(id,actor,status,progress,content)=>log.push({time:fdt(now()),id,actor,status,progress,content,source:'網頁'});
+  const role=n=>{ const p=ppl.find(p=>p.name===n); return p?p.role:''; };
+  const mustMgr=a=>{ if(role(a)!=='主管') throw new Error('只有主管可以使用此功能'); };
+  const upsert=(p,orig)=>{
+    if(!p.name) throw new Error('姓名不可空白');
+    if(ppl.some(x=>x.name===p.name&&x.name!==orig)) throw new Error('姓名「'+p.name+'」已存在');
+    if(p.account&&ppl.some(x=>x.name!==orig&&x.account&&x.account.toLowerCase()===p.account.toLowerCase())) throw new Error('帳號「'+p.account+'」已被使用');
+    const old=ppl.find(x=>x.name===orig);
+    const rec={name:p.name,role:/主管|管理/.test(p.role||'')?'主管':'員工',super:!!(old&&old.super),email:p.email||'',line:p.line||'',account:p.account||(old?old.account:''),password:p.password||(old?old.password:''),
+      supervisor:p.supervisor==null?(old?old.supervisor:''):p.supervisor,gender:p.gender==null?(old?old.gender:''):p.gender,avatar:old?old.avatar:0};
+    if(rec.account&&!rec.password) throw new Error('有帳號就要設定密碼');
+    if(old){ Object.assign(old,rec); if(orig!==p.name) tasks.forEach(t=>{ if(t.assignee===orig) t.assignee=p.name; if(t.owner===orig) t.owner=p.name; }); }
+    else ppl.push(rec);
+  };
+  const reported={};
+  const demoSet={hasKey:true,keyMasked:'AIza••••••••x9Qk',model:'gemini-3.5-flash-lite',salutation:'今日工作進度報告如下：',title:'每日工作追蹤',reportTo:'',digestHour:'8',reminderTime:'23:30',url:''};
+  const boot=actor=>({me:role(actor)?actor:'',isSuper:!!(ppl.find(p=>p.name===actor)||{}).super,aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
+    tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
+    config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'},today:fd(now())});
+  const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
+  const canTouch=(t,a)=>{ if(t.assignee!==a && role(a)!=='主管') throw new Error('這件工作的承辦人是 '+t.assignee); };
+  return {
+    auth(tok){ const n=String(tok||'').replace(/^demo:/,''); if(!role(n)) throw new Error('登入已過期，請重新登入'); return n; },
+    api_login(acc,pw){ const p=ppl.find(x=>x.account&&x.account.toLowerCase()===String(acc).toLowerCase()); if(!p||p.password!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+p.name,data:boot(p.name)}; },
+    api_logout(){ return true; },
+    api_people(a){ mustMgr(a); return adm(); },
+    api_plaza(a){ const order=['od','review','wait','pause','doing','todo'];
+      return {me:a,people:ppl.map(p=>{ const mine=tasks.filter(t=>t.assignee===p.name), open=mine.filter(t=>t.status!=='完成');
+        const bal=open.map(t=>isOverdue(t)?'od':t.status==='待確認'?'review':t.status==='等待外部'?'wait':t.status==='暫停'?'pause':t.status==='未開始'?'todo':'doing').sort((x,y)=>order.indexOf(x)-order.indexOf(y));
+        return {name:p.name,role:p.role,super:!!p.super,gender:p.gender,avatar:p.avatar,open:open.length,overdue:open.filter(isOverdue).length,review:open.filter(t=>t.status==='待確認').length,
+          waiting:open.filter(t=>t.status==='等待外部').length,paused:open.filter(t=>t.status==='暫停').length,todo:open.filter(t=>t.status==='未開始').length,
+          doneWeek:mine.filter(t=>t.status==='完成').length,bal,x:pos[p.name]?pos[p.name].x:null,y:pos[p.name]?pos[p.name].y:null}; })}; },
+    api_plazaMove(a,x,y){ pos[a]={x,y}; return true; },
+    api_setAvatar(a,av,g){ const p=ppl.find(x=>x.name===a); p.avatar=av; p.gender=g; return this.api_plaza(a); },
+    api_getSettings(a){ return {...demoSet}; },
+    api_saveSettings(a,v){ if(v.clearKey){ demoSet.hasKey=false; demoSet.keyMasked=''; } else if(v.key){ demoSet.hasKey=true; demoSet.keyMasked=v.key.slice(0,4)+'••••••••'+v.key.slice(-4); }
+      ['model','salutation','title','reportTo','url','digestHour','reminderTime'].forEach(k=>{ if(v[k]!=null) demoSet[k]=v[k]; }); return {settings:{...demoSet},data:boot(a)}; },
+    api_testAi(a,key){ if(!key&&!demoSet.hasKey) throw new Error('尚未設定金鑰'); return '連線成功（預覽模式）'; },
+    api_aiDaily(a){ return '- 完成福國社宅初驗複驗總結會議紀錄確認，已提報主管\n- 建築模組案期末報告持續修正，第三季執委會會議紀錄進度 75%\n- **北市圖資案**仍在等待叡揚報價，已逾期 2 天，可能需要主管協助催辦\n- 明日重點：完成會議紀錄併入報告書、再次追蹤叡揚'; },
+    api_sendDailyReport(a,text,ai){ reported[a]=true; return {sentTo:['manager@example.com'],ai:ai,data:boot(a)}; },
+    api_aiPerson(a,n){ mustMgr(a); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成'); return n+' 目前手上有 '+open.length+' 件未完成工作，重點在建築模組案期末報告與北市圖資案。近 7 天回報穩定，'+(open.some(isOverdue)?'但有逾期項目需要注意。':'沒有逾期項目。')+'（預覽模式的示範文字）'; },
+    api_aiRange(a,from,to,who){ return '## 整體概況\n'+from+' 至 '+to+' 期間共完成 7 件工作，北市圖資案與建築模組案為主要進度來源。\n## 各員工辦理狀況\n- **示範員工**：完成台北國際PMIS契約寄送；建築模組案期末報告修正中\n- **晏晨**：完成客製化表單對應；造價要項案期初報告 85%\n- **柏慶**：完成新北圖資主契約審核，回報頻率高\n## 風險與卡關\n- 北市圖資案等待叡揚報價已逾期\n- 華江案暫停，需確認發包時程\n## 建議\n- 由主管直接聯繫叡揚確認報價日期\n- 晏晨的臨時交辦已逾期，建議重新排定期限\n\n（預覽模式的示範文字）'; },
+    api_savePerson(a,p,orig){ mustMgr(a); upsert(p,orig); return {people:adm(),data:boot(a)}; },
+    api_deletePerson(a,n){ mustMgr(a); if(n===a) throw new Error('不能刪除自己的帳號'); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成').length; if(open) throw new Error(n+' 還有 '+open+' 件未完成的工作，請先轉派'); ppl=ppl.filter(p=>p.name!==n); return {people:adm(),data:boot(a)}; },
+    api_importPeople(a,rows){ mustMgr(a); const r={added:0,updated:0,errors:[]}; rows.forEach(x=>{ try{ const ex=ppl.some(p=>p.name===x.name); upsert(x,ex?x.name:''); ex?r.updated++:r.added++; }catch(e){ r.errors.push('第 '+x._row+' 列：'+e.message); } }); r.people=adm(); r.data=boot(a); return r; },
+    api_importTasks(a,rows){ mustMgr(a); rows.forEach(x=>{ seq++; const id='T'+String(seq).padStart(4,'0'); const st=x.status||'未開始';
+      tasks.push(mk(id,{type:x.type,project:x.project||'',content:x.content,owner:a,assignee:x.assignee,due:x.due,assignedAt:fdt(now()),startedAt:st==='未開始'?'':fdt(now()),status:st,progress:x.progress===''?'':x.progress,latest:x.latest||'',waitingFor:x.waitingFor||'',link:x.link||'',doneAt:st==='完成'?fdt(now()):'',submittedAt:st==='完成'?fdt(now()):''})); });
+      return {added:rows.length,errors:[],data:boot(a)}; },
+    api_bootstrap:boot,
+    api_createTask(actor,p){
+      const mgr=role(actor)==='主管'; const assignee=mgr?p.assignee:actor;
+      seq++; const id='T'+String(seq).padStart(4,'0');
+      const src=(mgr&&assignee!==actor)?'主管交辦':'自行新增';
+      tasks.push(mk(id,{notifyDone:!!(mgr&&p.notifyDone),type:p.type,source:src,project:p.project.trim(),content:p.content.trim(),owner:mgr?actor:(p.owner||'正翰'),assignee,due:p.due,assignedAt:fdt(now()),startedAt:'',status:'未開始',latest:'',link:(p.link||'').trim(),updatedAt:fdt(now())}));
+      addLog(id,actor,'未開始','',src==='主管交辦'?'指派給 '+assignee:'自行新增'); return boot(actor);
+    },
+    api_start(actor,id){ const t=find(id); canTouch(t,actor); if(!t.startedAt) t.startedAt=fdt(now()); if(t.status==='未開始') t.status='進行中'; addLog(id,actor,t.status,t.progress,'開始執行'); return boot(actor); },
+    api_report(actor,id,d){
+      const t=find(id); canTouch(t,actor); const mgr=role(actor)==='主管'; const prev=t.status;
+      let st=d.status||prev; if(st==='完成'&&!mgr) st='待確認';
+      if(prev==='完成'&&!mgr) throw new Error('此工作已由主管確認完成');
+      if(!t.startedAt) t.startedAt=fdt(now());
+      if(d.progress!==''&&d.progress!=null) t.progress=Number(d.progress);
+      if(st==='待確認'){ if(prev!=='待確認') t.submittedAt=fdt(now()); t.doneAt=''; }
+      else if(st==='完成'){ if(prev!=='完成') t.doneAt=fdt(now()); if(!t.submittedAt) t.submittedAt=t.doneAt; if(hasProg(t)) t.progress=100; }
+      else { t.submittedAt=''; t.doneAt=''; }
+      if(d.content) t.latest=d.content;
+      t.waitingFor=st==='等待外部'?(d.waitingFor||t.waitingFor):'';
+      t.status=st; t.updatedAt=fdt(now()); addLog(id,actor,st,t.progress,d.content); return boot(actor);
+    },
+    api_setNotifyDone(a,id,on){ mustMgr(a); find(id).notifyDone=!!on; return boot(a); },
+    api_reassign(actor,id,to){ if(role(actor)!=='主管') throw new Error('只有主管可以轉派'); const t=find(id); const old=t.assignee; t.assignee=to; addLog(id,actor,t.status,t.progress,'轉派：'+old+' → '+to); return boot(actor); },
+    api_delete(actor,id){ if(role(actor)!=='主管') throw new Error('只有主管可以刪除'); find(id); tasks=tasks.filter(t=>t.id!==id); addLog(id,actor,'刪除','','刪除'); return boot(actor); },
+    api_history(actor,id){ canTouch(find(id),actor); return log.filter(h=>h.id===id).slice().reverse(); }
+  };
+})();
+
+/* ═════════ 啟動 ═════════ */
+(function init(){
+  const saved=load('dtt.token');
+  if(!saved){ render(); return; }
+  S.token=saved;
+  api('api_bootstrap',saved).then(res=>{ applyData(res); render(); })
+    .catch(err=>{ logoutLocal(); const m=errMsg(err); S.login.err=/重新登入/.test(m)?'':m; render(); });
+})();
+
+})();
+</script>
+</body>
+</html>
