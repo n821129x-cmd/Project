@@ -529,7 +529,7 @@ function topHtml(withTabs){
   <header class="topbar"><div class="topbar-in">
     <div class="brand-row">
       <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
-      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="logout">登出</button></div>`:''}
+      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="myProfile" title="修改 Email、LINE 名稱、密碼">👤 我的資料</button><button class="out" data-act="logout">登出</button></div>`:''}
     </div>${tabs}
   </div></header>`;
 }
@@ -1580,6 +1580,25 @@ function renderModal(){
       ${S.people.map(p=>`<option ${m.to===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`,
       cancel+`<button class="btn primary" data-act="submitReassign">轉派並通知</button>`);
   }
+  else if(m.kind==='profile'){
+    const v=m.v;
+    html=shell('我的資料','可以自己修改 Email、LINE 名稱、性別與密碼',!v?'<div class="loading" style="padding:30px">載入中…</div>':`
+      <dl class="kv" style="margin-bottom:16px"><dt>姓名</dt><dd>${esc(v.name)}</dd><dt>角色</dt><dd>${esc(v.role)}</dd><dt>帳號</dt><dd>${esc(v.account||'—')}</dd><dt>直屬主管</dt><dd>${esc(v.supervisor||'未指定')}</dd></dl>
+      <div class="muted" style="font-size:12.5px;margin:-8px 0 14px">姓名、角色、直屬主管由主管／管理者設定，如需修改請告知主管。</div>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field full"><label>Email<span class="opt">寄日報與收通知用，請填自己的信箱</span></label><input class="inp" type="email" data-bind="m.email" value="${esc(m.email)}" placeholder="yourname@gmail.com"></div>
+        <div class="field"><label>LINE 名稱<span class="opt">選填</span></label><input class="inp" data-bind="m.line" value="${esc(m.line)}"></div>
+        <div class="field"><label>性別<span class="opt">花園廣場造型用</span></label><div class="pills">${['男','女'].map(g=>`<button class="pill ${m.gender===g?'on':''}" data-act="pfGender" data-v="${g}">${g}</button>`).join('')}</div></div>
+      </div>
+      <div class="form-foot" style="margin-top:14px"><span></span><button class="btn primary" data-act="saveProfile">儲存資料</button></div>
+      <div class="set-sec" style="margin-top:18px"><h3>修改密碼</h3>
+        <div class="form-grid" style="margin-top:8px">
+          <div class="field"><label>目前密碼</label><input class="inp" type="password" data-bind="m.oldPw" value="${esc(m.oldPw||'')}" autocomplete="current-password"></div>
+          <div class="field"><label>新密碼<span class="opt">至少 4 個字</span></label><input class="inp" type="password" data-bind="m.newPw" value="${esc(m.newPw||'')}" autocomplete="new-password"></div>
+        </div>
+        <div class="form-foot" style="margin-top:12px"><span></span><button class="btn purple" data-act="changePw">更新密碼</button></div>
+      </div>`,`<button class="btn" data-act="closeModal">關閉</button>`);
+  }
   else if(m.kind==='mailReady'){
     const r=m.r, mailto='mailto:'+encodeURIComponent(r.to.join(','))+'?subject='+encodeURIComponent(r.subject);
     html=shell('日報已準備好','從你自己的信箱寄出',`
@@ -1782,6 +1801,23 @@ const A = {
     }).catch(err=>{ m.sending=false; if(S.modal===m) renderModal();
       if(/NEED_EMAIL/.test(errMsg(err))){ S.myEmail=''; renderModal(); return toast('請先填寫你的 Email',true); } onErr(err); });
   },
+  myProfile(){
+    S.modal={kind:'profile',v:null,color:'#2D5BE3'}; renderModal();
+    api('api_myProfile',S.token).then(v=>{ if(S.modal&&S.modal.kind==='profile'){ Object.assign(S.modal,{v,email:v.email||'',line:v.line||'',gender:v.gender||''}); renderModal(); } }).catch(onErr);
+  },
+  pfGender(el){ S.modal.gender=el.dataset.v; renderModal(); },
+  saveProfile(){
+    const m=S.modal, e=String(m.email||'').trim();
+    if(!e) return toast('請填寫 Email，沒有 Email 無法寄出日報',true);
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Email 格式不正確',true);
+    api('api_updateMyProfile',S.token,{email:e,line:m.line,gender:m.gender}).then(res=>{ applyData(res.data); Object.assign(S.modal,{v:res.profile}); renderModal(); toast('已儲存你的資料'); if(PZ.data) pzLoad(); }).catch(onErr);
+  },
+  changePw(){
+    const m=S.modal;
+    if(!m.oldPw||!m.newPw) return toast('請輸入目前密碼與新密碼',true);
+    if(String(m.newPw).length<4) return toast('新密碼至少 4 個字',true);
+    api('api_changePassword',S.token,m.oldPw,m.newPw).then(()=>{ m.oldPw=''; m.newPw=''; renderModal(); toast('密碼已更新，下次登入請用新密碼'); }).catch(onErr);
+  },
   saveMyEmail(){
     const m=S.modal, e=String(m.myEmail||'').trim();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Email 格式不正確',true);
@@ -1961,6 +1997,9 @@ const Demo=(()=>{
       return {to:(sup.length?sup:ppl.filter(x=>x.role==='主管')).filter(x=>x.email).map(x=>x.email),noMail:sup.filter(x=>!x.email).map(x=>x.name),subject:'【日報】'+a+' 工作回報',
         html:'<div style="font-family:sans-serif;padding:16px"><h3 style="margin:0 0 8px">'+a+' 工作日報</h3><pre style="white-space:pre-wrap;font-family:inherit">'+esc(text)+'</pre><table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>工作</th><th>狀態</th></tr><tr><td>（預覽示範）</td><td>進行中</td></tr></table></div>',
         plain:text,myEmail:p.email,data:boot(a)}; },
+    api_myProfile(a){ const p=ppl.find(x=>x.name===a); return {name:p.name,role:p.super?'管理者':p.role,supervisor:p.supervisor,email:p.email,line:p.line,gender:p.gender,account:p.account}; },
+    api_updateMyProfile(a,v){ const p=ppl.find(x=>x.name===a); if(ppl.some(x=>x.name!==a&&x.email===v.email)) throw new Error('這個 Email 已經有其他人使用'); p.email=v.email; p.line=v.line||''; if(v.gender) p.gender=v.gender; return {profile:this.api_myProfile(a),data:boot(a)}; },
+    api_changePassword(a,o,n){ const p=ppl.find(x=>x.name===a); if(p.password!==o) throw new Error('目前的密碼不正確'); p.password=n; return true; },
     api_updateMyEmail(a,e){ ppl.find(x=>x.name===a).email=e; return boot(a); },
     api_sendDailyReport(a,text,ai){ reported[a]=true; return {sentTo:['manager@example.com'],ai:ai,data:boot(a)}; },
     api_aiPerson(a,n){ mustMgr(a); const open=tasks.filter(t=>t.assignee===n&&t.status!=='完成'); return n+' 目前手上有 '+open.length+' 件未完成工作，重點在建築模組案期末報告與北市圖資案。近 7 天回報穩定，'+(open.some(isOverdue)?'但有逾期項目需要注意。':'沒有逾期項目。')+'（預覽模式的示範文字）'; },

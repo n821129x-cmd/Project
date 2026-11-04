@@ -449,6 +449,47 @@ function api_updateMyEmail(token, email) {
   return bootstrap_(actor);
 }
 
+/** 我的資料：每個人都能改自己的 Email、LINE 名稱、性別（姓名、角色、直屬主管由主管／管理者設定） */
+function api_myProfile(token) {
+  const actor = auth_(token);
+  const me = mustPerson_(getPeople_(), actor);
+  return { name: me.name, role: me.super ? '管理者' : me.role, supervisor: me.supervisor, email: me.email, line: me.line, gender: me.gender, account: me.account };
+}
+
+function api_updateMyProfile(token, v) {
+  const actor = auth_(token);
+  v = v || {};
+  const people = getPeople_();
+  const e = String(v.email || '').trim().toLowerCase();
+  if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Email 格式不正確');
+  if (e && people.some(p => p.name !== actor && p.email === e)) throw new Error('這個 Email 已經有其他人使用');
+  const sh = sheet_(SHEET.PEOPLE);
+  ensurePeopleCols_();
+  const vals = sh.getDataRange().getValues();
+  const head = vals[0].map(String);
+  const col = n => head.indexOf(n);
+  for (let i = 1; i < vals.length; i++) {
+    if (String(vals[i][col('姓名')]).trim() !== actor) continue;
+    sh.getRange(i + 1, col('Email') + 1).setValue(e);
+    if (v.line != null) sh.getRange(i + 1, col('LINE名稱') + 1).setValue(String(v.line).trim());
+    if (v.gender === '男' || v.gender === '女') sh.getRange(i + 1, col('性別') + 1).setValue(v.gender);
+    break;
+  }
+  return { profile: api_myProfile(token), data: bootstrap_(actor) };
+}
+
+function api_changePassword(token, oldPw, newPw) {
+  const actor = auth_(token);
+  const me = mustPerson_(getPeople_(), actor);
+  if (String(oldPw) !== me.password) throw new Error('目前的密碼不正確');
+  if (String(newPw || '').length < 4) throw new Error('新密碼至少 4 個字');
+  const sh = sheet_(SHEET.PEOPLE);
+  const vals = sh.getDataRange().getValues();
+  const head = vals[0].map(String);
+  for (let i = 1; i < vals.length; i++) if (String(vals[i][head.indexOf('姓名')]).trim() === actor) { sh.getRange(i + 1, head.indexOf('密碼') + 1).setValue(String(newPw)); break; }
+  return true;
+}
+
 /** （舊）由系統信箱代寄；保留給主管需要時使用 */
 function api_sendDailyReport(token, lineText, aiText) {
   const actor = auth_(token);
