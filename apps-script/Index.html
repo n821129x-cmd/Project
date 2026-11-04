@@ -353,7 +353,7 @@ const PERSON_COLORS = ['#8A55D6','#2D5BE3','#E0508A','#14917F','#E0791F','#2B9BD
 const SEG = [['done','完成','#14917F'],['review','待確認','#C98A00'],['active','執行中','#2D5BE3'],['todo','未開始','#D5D5DF']];
 const IS_DEMO = !(window.google && google.script && google.script.run);
 const S = {
-  people:[], projects:[], tasks:[], config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'}, today:'', af:{q:'',status:'未完成'},
+  people:[], projects:[], tasks:[], config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'}, today:'', af:{q:'',status:'未完成',who:''},
   me:null, token:null, admin:null, sets:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部', who:''},
@@ -729,12 +729,21 @@ function assignListHtml(){
   const all=S.tasks.filter(t=>t.owner===S.me && t.source==='主管交辦');
   if(!all.length) return '<div class="empty">還沒有指派紀錄</div>';
   const q=S.af.q.trim().toLowerCase();
-  let list=all.filter(t=>matchStatus(t,S.af.status));
-  if(q) list=list.filter(t=>[t.id,t.project,t.content,t.latest,t.assignee,t.waitingFor].join(' ').toLowerCase().includes(q));
-  list.sort((a,b)=>(parseT(b.assignedAt)||0)-(parseT(a.assignedAt)||0));
-  const chips=[]; if(S.af.status!=='未完成') chips.push('狀態：'+S.af.status); if(q) chips.push('搜尋：「'+S.af.q.trim()+'」');
+  let base=all.filter(t=>matchStatus(t,S.af.status));
+  if(q) base=base.filter(t=>[t.id,t.project,t.content,t.latest,t.assignee,t.waitingFor].join(' ').toLowerCase().includes(q));
+  /* 同仁篩選：依人員名單動態產生，數字＝目前狀態／搜尋條件下的件數 */
+  const wc={}; base.forEach(t=>{ wc[t.assignee]=(wc[t.assignee]||0)+1; });
+  const ppl=S.people.filter(p=>all.some(t=>t.assignee===p.name)||p.role!=='主管');
+  const who=S.af.who&&S.people.some(p=>p.name===S.af.who)?S.af.who:'';
+  const pills=`<div class="pills" style="margin-top:14px"><button class="pill ${who?'':'on'}" data-act="afWho" data-v="">全部同仁<span class="n">${base.length}</span></button>
+    ${ppl.map(p=>`<button class="pill who-pill ${who===p.name?'on':''} ${wc[p.name]?'':'zero'}" data-act="afWho" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}<span class="n">${wc[p.name]||0}</span></button>`).join('')}</div>`;
+  const list=who?base.filter(t=>t.assignee===who):base;
+  const chips=[]; if(S.af.status!=='未完成') chips.push('狀態：'+S.af.status); if(who) chips.push('同仁：'+who); if(q) chips.push('搜尋：「'+S.af.q.trim()+'」');
   const note=chips.length?`<div class="fnote">🔍 目前已篩選 ${chips.map(c=>`<span class="fc">${esc(c)}</span>`).join('')}<span class="cnt2">顯示 ${list.length} / ${all.length} 件</span><button class="btn sm amber" data-act="clearAf">清除篩選</button></div>`:'';
-  return note+(list.length?`<div class="grid" style="margin-top:18px">${list.map(t=>cardHtml(t,'assign')).join('')}</div>`:'<div class="empty">沒有符合條件的工作</div>');
+  if(!list.length) return pills+note+'<div class="empty">沒有符合條件的工作</div>';
+  const groups=S.people.map(p=>({p,items:orderTasks(list.filter(t=>t.assignee===p.name))})).filter(g=>g.items.length);
+  return pills+note+groups.map(g=>`<h3 class="sec-title">${avatar(g.p.name)}${esc(g.p.name)}<span class="cnt">${g.items.length}</span></h3>
+    <div class="grid">${g.items.map(t=>cardHtml(t,'assign')).join('')}</div>`).join('');
 }
 /* ═════════ 人員管理（主管） ═════════ */
 function loadAdmin(){
@@ -1639,7 +1648,8 @@ const A = {
   tileF(el){ const v=el.dataset.v; S.f.status=(S.f.status===v&&v!=='未完成')?'未完成':v; render(); },
   clearF(){ S.f={...F_DEFAULT}; render(); },
   af(el){ S.af.status=el.dataset.v; render(); },
-  clearAf(){ S.af={q:'',status:'未完成'}; render(); },
+  clearAf(){ S.af={q:'',status:'未完成',who:''}; render(); },
+  afWho(el){ S.af.who=S.af.who===el.dataset.v?'':el.dataset.v; const e=$('#assignList'); if(e) e.innerHTML=assignListHtml(); },
   sf(el){ S.sf[el.dataset.k]=el.dataset.v; render(); },
   logout(){ const tk=S.token; logoutLocal(); render(); api('api_logout',tk).catch(()=>{}); },
   closeModal(el,e){ if(e.target!==el) return; S.modal=null; renderModal(); },
