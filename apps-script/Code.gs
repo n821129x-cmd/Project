@@ -401,8 +401,7 @@ function buildDailyReport_(actor, lineText, aiText) {
   const tasks = orderTasks_(readTasks_().filter(t => t.assignee === actor &&
     (t.status !== '完成' || (t.doneAt instanceof Date && fmt_(t.doneAt, 'yyyy-MM-dd') === today))));
   const text = String(lineText || '').trim() || buildReportText_(tasks, reportHeader_(cfg), today, true);
-  let ai = me.role === '主管' ? String(aiText || '').trim() : '';   // 員工不能自行撰寫 AI 摘要，一律由系統產生
-  if (!ai && geminiKey_()) { try { ai = aiDailyText_(actor); } catch (e) { ai = ''; } }
+  const ai = '';   // 日報信件不附 AI 摘要（AI 產生需要時間），主管到系統的「團隊總覽／AI 分析」查看
 
   let to = String(cfg['日報收件人'] || '').split(/[,，;；\s]+/).filter(x => /@/.test(x));
   const sups = supPeople_(people, me).filter(p => p.name !== actor);

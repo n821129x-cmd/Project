@@ -1798,12 +1798,8 @@ function renderModal(){
     html=shell('今日回報',S.reportedToday?'今天已寄過日報，再寄一次會寄出最新版本給主管':'可複製使用，或直接寄日報給主管',
       `<div class="rep-sec"><span class="n">1</span>回報說明<button class="btn sm" data-act="copy" style="margin-left:auto">複製</button></div>
        <textarea class="inp report-text" id="repText" data-bind="m.text" style="min-height:220px">${esc(m.text)}</textarea>
-       ${isMgr(S.me)?`<div class="rep-sec"><span class="n">2</span>AI 進度摘要<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">可修改</span>
-         ${S.aiEnabled?`<button class="btn sm ai" data-act="aiDaily" style="margin-left:auto" ${m.aiLoading?'disabled':''}>${m.aiLoading?'<span class="spin"></span> 彙整中':SPARK+' AI 彙整'}</button>`:''}</div>
-       ${S.aiEnabled?`<textarea class="inp" data-bind="m.ai" style="min-height:110px" placeholder="按「AI 彙整」自動產生；留空的話寄出時會自動產生">${esc(m.ai)}</textarea>`
-         :'<div class="note">尚未設定 Gemini API 金鑰，日報會只包含回報說明與工作表格。</div>'}`
-       :`<div class="note" style="margin-top:14px">寄出後，主管收到的日報會附上工作明細表格${S.aiEnabled?'與系統自動產生的進度摘要':''}。請先在系統上把每件工作的進度更新好再寄出。</div>`}
-       <div class="rep-sec"><span class="n">${isMgr(S.me)?3:2}</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`+
+       <div class="note" style="margin-top:14px">寄出後，主管收到的日報會附上工作明細表格。請先在系統上把每件工作的進度更新好再寄出。${S.aiEnabled?'（AI 摘要不放在信裡，主管可以在系統上查看）':''}</div>
+       <div class="rep-sec"><span class="n">2</span>工作明細表格<span class="opt" style="font-weight:400;color:var(--faint);font-size:12.5px">寄出時依系統最新進度自動附上（${m.count} 件）</span></div>`+
       (S.myEmail?`<div class="note" style="margin-top:14px">📮 日報會從<b>你自己的信箱（${esc(S.myEmail)}）</b>寄出：按下按鈕後系統會準備好內容，再打開你的 Gmail 撰寫視窗。</div>`
         :`<div class="note" style="margin-top:14px;background:var(--pink-soft);color:#A2275C">⚠ 你還沒有設定 Email，無法寄出日報。請先填寫你自己的信箱：</div>
           <div style="display:flex;gap:8px;margin-top:8px"><input class="inp" type="email" data-bind="m.myEmail" value="${esc(m.myEmail||'')}" placeholder="例：yourname@gmail.com"><button class="btn primary" data-act="saveMyEmail">儲存</button></div>`),
