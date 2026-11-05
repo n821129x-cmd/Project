@@ -206,6 +206,7 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.prev tr.skip td{color:var(--faint);background:#FAFAFC}
 .vt{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;background:#fff;align-self:center}
 .vt button{border:none;background:#fff;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--muted)}
 .vt button svg{width:16px;height:16px}
@@ -643,7 +644,7 @@ function tilesHtml(list){
 function mainHtml(){
   const list=visible(); const mine=S.tab==='mine';
   const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
-    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:''}</div></div>`;
+    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn" data-act="openExport">📤 匯出 Excel</button><button class="btn" data-act="openBatch">📥 批次回報</button><button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:`<button class="btn" data-act="openExport">📤 匯出 Excel</button>`}</div></div>`;
   const tiles=tilesHtml(baseList())+filterNote(list.length);
   if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
   const groups=[];
@@ -846,6 +847,11 @@ function peoplePage(){
 function supArr(v){ return String(v||'').split(/[、,，;；\s]+/).map(x=>x.trim()).filter(Boolean); }
 /* ═════════ Excel 匯入 ═════════ */
 const IMPORT_SPEC={
+  progress:{label:'今日進度',cols:[
+    ['id','編號',['編號','工作編號','id']],['project','專案名稱',['專案名稱','專案']],['title','工作內容',['工作內容']],
+    ['status','狀態',['狀態','今日狀態','新狀態']],['progress','進度',['進度','今日進度','新進度']],
+    ['content','今日回報內容',['今日回報內容','回報內容','今日回報','回報']],['waitingFor','等待對象',['等待對象','等待']]],
+    required:['id'],sample:[]},
   people:{label:'人員',cols:[
     ['name','姓名',['姓名','名字']],['role','角色',['角色','職位','權限']],['email','Email',['email','信箱','電子郵件','e-mail','mail']],
     ['line','LINE名稱',['line名稱','line']],['account','帳號',['帳號','account']],['password','密碼',['密碼','password']],
@@ -904,7 +910,11 @@ function parseSheet(kind,buf){
     const o={_row:i+1};
     spec.cols.forEach(c=>{ if(c[0] in map){ let v=r[map[c[0]]]; o[c[0]]=v==null?'':v; } });
     Object.keys(o).forEach(k=>{ if(k!=='_row'&&typeof o[k]==='string') o[k]=o[k].trim(); });
-    if(kind==='tasks'){
+    if(kind==='progress'){
+      o.id=String(o.id||'').trim().toUpperCase().replace(/^#/,'');
+      if(o.progress!==''&&o.progress!=null){ const n=parseFloat(String(o.progress).replace('%','')); o.progress=isNaN(n)?'':(n>0&&n<1&&String(o.progress).indexOf('%')<0?Math.round(n*100):Math.max(0,Math.min(100,Math.round(n)))); }
+      o.status=String(o.status||'').trim();
+    } else if(kind==='tasks'){
       o.due=normDate(o.due);
       if(o.progress!==''&&o.progress!=null){ const n=parseFloat(String(o.progress).replace('%','')); o.progress=isNaN(n)?'':(n>0&&n<1&&String(o.progress).indexOf('%')<0?Math.round(n*100):Math.max(0,Math.min(100,Math.round(n)))); }
       o.type=/臨時/.test(String(o.type||''))?'臨時代辦':'專案執行';
@@ -920,6 +930,17 @@ function parseSheet(kind,buf){
 }
 function checkRow(kind,o){
   const e=[];
+  if(kind==='progress'){
+    const t=S.tasks.find(x=>x.id===o.id);
+    if(!o.id) return '編號空白';
+    if(!t) return '找不到工作 #'+o.id;
+    if(t.assignee!==S.me&&!isMgr(S.me)) return '這件工作的承辦人是 '+t.assignee;
+    if(t.status==='完成') return '已確認完成，不能再修改';
+    if(o.status&&['未開始','進行中','等待外部','暫停','完成','待確認'].indexOf(o.status)<0) return '看不懂狀態「'+o.status+'」';
+    const changed=(o.status&&o.status!==t.status&&!(o.status==='完成'&&t.status==='待確認'))||(o.progress!==''&&o.progress!=null&&Number(o.progress)!==t.progress)||!!String(o.content||'').trim()||(o.waitingFor&&o.waitingFor!==t.waitingFor);
+    if(!changed) o._skip=true;
+    return '';
+  }
   if(kind==='tasks'){
     if(!o.content) e.push('工作內容空白');
     if(!o.assignee) e.push('承辦人空白');
@@ -952,12 +973,12 @@ function pickFile(kind){
 }
 function importModalBody(m){
   const spec=IMPORT_SPEC[m.what];
-  const bad=m.rows.filter(r=>r._err).length, good=m.rows.length-bad;
+  const bad=m.rows.filter(r=>r._err).length, skip=m.rows.filter(r=>!r._err&&r._skip).length, good=m.rows.length-bad-skip;
   const cols=spec.cols.filter(c=>m.rows.some(r=>c[0] in r && r[c[0]]!==''));
   const show=v=>v==null?'':String(v);
-  return `<div class="${bad?'errlist':'oklist'}">${esc(m.file)}：共 ${m.rows.length} 列，可匯入 <b>${good}</b> 列${bad?`，<b>${bad}</b> 列有問題會略過（粉紅色列）`:''}</div>
+  return `<div class="${bad?'errlist':'oklist'}">${esc(m.file)}：共 ${m.rows.length} 列，可${m.what==='progress'?'更新':'匯入'} <b>${good}</b> 列${skip?`，<b>${skip}</b> 列沒有變更會略過（灰色列）`:''}${bad?`，<b>${bad}</b> 列有問題會略過（粉紅色列）`:''}</div>
     <div class="prev"><table><thead><tr><th>列</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th>檢查</th></tr></thead>
-    <tbody>${m.rows.slice(0,200).map(r=>`<tr class="${r._err?'bad':''}"><td>${r._row}</td>${cols.map(c=>`<td title="${esc(show(c[0]==='password'&&r[c[0]]?'••••':r[c[0]]))}">${esc(c[0]==='password'&&r[c[0]]?'••••':show(r[c[0]]))}</td>`).join('')}<td>${r._err?esc(r._err):'✓'}</td></tr>`).join('')}</tbody></table></div>
+    <tbody>${m.rows.slice(0,200).map(r=>`<tr class="${r._err?'bad':(r._skip?'skip':'')}"><td>${r._row}</td>${cols.map(c=>`<td title="${esc(show(c[0]==='password'&&r[c[0]]?'••••':r[c[0]]))}">${esc(c[0]==='password'&&r[c[0]]?'••••':show(r[c[0]]))}</td>`).join('')}<td>${r._err?esc(r._err):(r._skip?'未變更':'✓')}</td></tr>`).join('')}</tbody></table></div>
     ${m.what==='tasks'?`<label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（每位承辦人只收一封彙整通知）</label>`:''}`;
 }
 
@@ -1448,6 +1469,48 @@ function copyRich(html,plain){
   }
   return ok;
 }
+/* ═════════ Excel 匯出（分天） ═════════ */
+const WD='日一二三四五六';
+function wdOf(day){ return WD[new Date(day+'T00:00').getDay()]; }
+function sheetFrom(rows,widths){ const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=widths.map(w=>({wch:w})); if(rows.length>1) ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:rows[0].length-1}})}; return ws; }
+function buildExport(d){
+  const wb=XLSX.utils.book_new();
+  const logs=d.logs.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.assignee<b.assignee?-1:a.assignee>b.assignee?1:(a.time<b.time?-1:1)));
+  const H=['日期','星期','時間','承辦人','編號','專案','工作內容','狀態','進度','回報內容','回報人','來源'];
+  const row=l=>[l.day,wdOf(l.day),l.time,l.assignee,l.id,l.project||'臨時代辦',l.content,l.status,l.progress===''?'':l.progress,l.note,l.actor,l.source];
+  XLSX.utils.book_append_sheet(wb,sheetFrom([H,...logs.map(row)],[11,5,6,8,8,20,36,9,6,40,8,7]),'每日明細');
+  /* 每日彙整 */
+  const sum=[['日期','星期','承辦人','回報筆數','更新工作件數','提報完成件數','寄出日報']];
+  const days=[]; for(let x=d.from;x<=d.to;x=addDays(x,1)) days.push(x);
+  days.forEach(day=>{ d.names.forEach(n=>{
+    const ls=logs.filter(l=>l.day===day&&l.assignee===n), rp=d.reports.some(r=>r.day===day&&r.name===n);
+    if(!ls.length&&!rp) return;
+    sum.push([day,wdOf(day),n,ls.length,new Set(ls.map(l=>l.id)).size,new Set(ls.filter(l=>l.status==='待確認'||l.status==='完成').map(l=>l.id)).size,rp?'是':'否']);
+  }); });
+  XLSX.utils.book_append_sheet(wb,sheetFrom(sum,[11,5,8,9,12,12,9]),'每日彙整');
+  /* 工作清單 */
+  const TH=['編號','承辦人','類型','專案','工作內容','目前狀態','進度','最新回報','等待對象','指派日','開始日','完成日','需完成日期','逾期'];
+  XLSX.utils.book_append_sheet(wb,sheetFrom([TH,...d.tasks.map(t=>[t.id,t.assignee,t.type,t.project||'臨時代辦',t.content,t.status,t.progress===''?'':t.progress,t.latest,t.waitingFor,t.assignedAt,t.startedAt,t.doneAt,t.due,t.overdue?'是':''])],[8,8,9,20,36,9,6,40,10,11,11,11,11,5]),'工作清單');
+  if(d.reports.length) XLSX.utils.book_append_sheet(wb,sheetFrom([['日期','星期','承辦人','寄出時間','回報說明','AI 摘要'],...d.reports.map(r=>[r.day,wdOf(r.day),r.name,r.time,r.text,r.ai])],[11,5,8,8,70,50]),'日報');
+  /* 每天一個工作表 */
+  const DH=['時間','承辦人','編號','專案','工作內容','狀態','進度','回報內容','來源'];
+  days.filter(day=>logs.some(l=>l.day===day)).slice(0,62).forEach(day=>{
+    const ls=logs.filter(l=>l.day===day);
+    XLSX.utils.book_append_sheet(wb,sheetFrom([DH,...ls.map(l=>[l.time,l.assignee,l.id,l.project||'臨時代辦',l.content,l.status,l.progress===''?'':l.progress,l.note,l.source])],[6,8,8,20,36,9,6,40,7]),day.slice(5)+'（'+wdOf(day)+'）');
+  });
+  return wb;
+}
+function progressTemplate(){
+  if(!xlsxReady()) return;
+  const mine=orderTasks(S.tasks.filter(t=>t.assignee===S.me&&t.status!=='完成'&&t.status!=='待確認'));
+  if(!mine.length) return toast('目前沒有可以回報的工作',true);
+  const rows=[['編號','專案名稱','工作內容','目前狀態','目前進度','狀態','進度','今日回報內容','等待對象'],
+    ...mine.map(t=>[t.id,t.project||'臨時代辦',t.content,t.status,hasProg(t)?t.progress:'',t.status,hasProg(t)?t.progress:'','',t.waitingFor||''])];
+  const ws=sheetFrom(rows,[8,20,36,9,8,10,7,44,10]);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'今日進度');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['填寫說明'],['1. 只要修改「狀態」「進度」「今日回報內容」「等待對象」四欄，其他欄位不要改。'],['2. 沒有變動的工作不用動，上傳時會自動略過。'],['3. 狀態可填：未開始、進行中、等待外部、暫停、完成（完成會送主管確認）。'],['4. 進度填 0～100 的數字，沒有明確進度可留空。']]),'說明');
+  try{ XLSX.writeFile(wb,'今日進度表_'+S.me+'_'+S.today+'.xlsx'); }catch(e){ toast('瀏覽器不允許下載',true); }
+}
 /* ═════════ AI 顯示 ═════════ */
 function mdHtml(text){
   const out=[]; let inList=false;
@@ -1662,6 +1725,30 @@ function renderModal(){
         <div class="form-foot" style="margin-top:12px"><span></span><button class="btn purple" data-act="changePw">更新密碼</button></div>
       </div>`,`<button class="btn" data-act="closeModal">關閉</button>`);
   }
+  else if(m.kind==='export'){
+    const mgr=isMgr(S.me), days=m.from&&m.to&&m.from<=m.to?dayDiff(m.from,m.to)+1:0;
+    html=shell('匯出 Excel','依日期分天整理工作紀錄',`
+      <div class="range-row" style="margin-top:0">
+        <div class="field"><label>開始日期</label><input class="inp" type="date" data-bind="m.from" value="${esc(m.from)}" max="${S.today}"></div>
+        <div class="field"><label>結束日期</label><input class="inp" type="date" data-bind="m.to" value="${esc(m.to)}" max="${S.today}"></div>
+        ${mgr?`<div class="field"><label>人員</label><select class="inp" data-bind="m.who"><option value="">全部人員</option>${S.people.map(p=>`<option ${m.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`:''}
+      </div>
+      <div class="pills" style="margin-top:12px">${QUICK.map(k=>{ const q=quickRange(k); return `<button class="pill ${q[0]===m.from&&q[1]===m.to?'on':''}" data-act="exQuick" data-v="${k}">${k}</button>`; }).join('')}</div>
+      <div class="range-hint">${days?`📅 ${mdw(m.from)} ～ ${mdw(m.to)}，共 ${days} 天｜${mgr?(m.who?esc(m.who):'全部人員'):esc(S.me)}`:'<span style="color:#C23A72">請選擇正確的日期區間</span>'}</div>
+      <div class="note" style="margin-top:14px">Excel 內容：<b>每日明細</b>（每天每一筆回報）、<b>每日彙整</b>（每人每天的回報數、是否寄日報）、<b>工作清單</b>（區間內的工作與目前狀態）、<b>日報</b>，以及<b>每天一個工作表</b>。${mgr?'':'<br>員工只能匯出自己的資料。'}</div>`,
+      cancel+`<button class="btn primary" data-act="doExport" ${days&&!m.loading?'':'disabled'}>${m.loading?'<span class="spin"></span> 產生中…':'下載 Excel'}</button>`,true);
+  }
+  else if(m.kind==='batch'){
+    const mine=S.tasks.filter(t=>t.assignee===S.me&&t.status!=='完成'&&t.status!=='待確認');
+    html=shell('批次回報今日進度','用 Excel 一次更新多件工作',`
+      <ol class="mail-steps">
+        <li>下載「今日進度表」：裡面是你目前 <b>${mine.length}</b> 件進行中的工作，狀態與進度已經帶入目前的值</li>
+        <li>在 Excel 修改有變動的工作：<b>狀態</b>、<b>進度</b>、<b>今日回報內容</b>、<b>等待對象</b>（沒變的列不用動，會自動略過）</li>
+        <li>回到這裡上傳，預覽確認後送出</li>
+      </ol>
+      <div class="note" style="margin-top:12px">狀態可填：未開始、進行中、等待外部、暫停、完成（完成會送主管確認）。進度填 0～100 的數字。</div>`,
+      cancel+`<button class="btn" data-act="tplProgress">① 下載今日進度表</button><button class="btn primary" data-act="pickFile" data-v="progress">② 上傳 Excel</button>`,true);
+  }
   else if(m.kind==='mailReady'){
     const r=m.r, mailto='mailto:'+encodeURIComponent(r.to.join(','))+'?subject='+encodeURIComponent(r.subject);
     html=shell('日報已準備好','從你自己的信箱寄出',`
@@ -1677,8 +1764,9 @@ function renderModal(){
   }
   else if(m.kind==='import'){
     const n=m.rows.filter(r=>!r._err).length;
-    html=shell('匯入'+IMPORT_SPEC[m.what].label+'（預覽）','確認內容後再匯入',importModalBody(m),
-      cancel+`<button class="btn primary" data-act="doImport" ${n?'':'disabled'}>匯入 ${n} 列</button>`,true);
+    const n2=m.rows.filter(r=>!r._err&&!r._skip).length;
+    html=shell((m.what==='progress'?'批次回報':'匯入'+IMPORT_SPEC[m.what].label)+'（預覽）','確認內容後再送出',importModalBody(m),
+      cancel+`<button class="btn primary" data-act="doImport" ${n2?'':'disabled'}>${m.what==='progress'?'更新':'匯入'} ${n2} 列</button>`,true);
   }
   else if(m.kind==='importResult'){
     html=shell('匯入結果','',`<div class="oklist">${esc(m.summary)}</div>${m.errors.length?`<div class="errlist">${m.errors.map(esc).join('<br>')}</div>`:''}`,
@@ -1756,6 +1844,21 @@ const A = {
   },
   pzClose(){ PZ.sel=null; pzShowCard(null); },
   pzFind(){ const c=PZ.chars[S.me]; if(!c) return; PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  openExport(){ const q=quickRange('本週'); S.modal={kind:'export',from:q[0],to:q[1],who:'',color:'#14917F'}; renderModal(); },
+  exQuick(el){ const q=quickRange(el.dataset.v); S.modal.from=q[0]; S.modal.to=q[1]; renderModal(); },
+  doExport(){
+    const m=S.modal; if(!xlsxReady()) return;
+    m.loading=true; renderModal();
+    api('api_exportRange',S.token,m.from,m.to,isMgr(S.me)?m.who:'').then(d=>{
+      m.loading=false;
+      if(!d.logs.length&&!d.tasks.length&&!d.reports.length){ renderModal(); return toast('這段期間沒有任何工作紀錄',true); }
+      const wb=buildExport(d);
+      try{ XLSX.writeFile(wb,'工作紀錄_'+(d.who||'全部人員')+'_'+d.from+'_'+d.to+'.xlsx'); S.modal=null; renderModal(); toast('已下載 Excel（'+d.logs.length+' 筆回報、'+d.tasks.length+' 件工作）'); }
+      catch(e){ renderModal(); toast('瀏覽器不允許下載',true); }
+    }).catch(err=>{ m.loading=false; renderModal(); onErr(err); });
+  },
+  openBatch(){ S.modal={kind:'batch',color:'#2D5BE3'}; renderModal(); },
+  tplProgress(){ progressTemplate(); },
   setView(el){ S.view=el.dataset.v; store('dtt.view',S.view); render(); },
   clearSf(){ S.sf={period:'全部',src:'全部',who:''}; render(); },
   tileF(el){ const v=el.dataset.v; S.f.status=(S.f.status===v&&v!=='未完成')?'未完成':v; render(); },
@@ -1803,15 +1906,15 @@ const A = {
   tpl(el){ downloadTemplate(el.dataset.v); },
   pickFile(el){ if(el.dataset.v==='people'&&!S.admin){ loadAdmin().then(()=>pickFile('people')); return; } pickFile(el.dataset.v); },
   doImport(){
-    const m=S.modal, rows=m.rows.filter(r=>!r._err).map(r=>{ const o={...r}; delete o._err; return o; });
-    const fn=m.what==='tasks'?'api_importTasks':'api_importPeople';
+    const m=S.modal, rows=m.rows.filter(r=>!r._err&&!r._skip).map(r=>{ const o={...r}; delete o._err; delete o._skip; return o; });
+    const fn=m.what==='tasks'?'api_importTasks':(m.what==='progress'?'api_batchReport':'api_importPeople');
     const args=m.what==='tasks'?[rows,!!m.notify]:[rows];
     const skipped=m.rows.length-rows.length;
     document.body.classList.add('busy');
     api(fn,S.token,...args).then(res=>{
       document.body.classList.remove('busy');
       applyData(res.data); if(res.people) S.admin=res.people;
-      const summary=m.what==='tasks'?`已匯入 ${res.added} 件工作`:`新增 ${res.added} 人、更新 ${res.updated} 人`;
+      const summary=m.what==='tasks'?`已匯入 ${res.added} 件工作`:(m.what==='progress'?`已更新 ${res.updated} 件工作的進度`:`新增 ${res.added} 人、更新 ${res.updated} 人`);
       S.modal={kind:'importResult',summary:summary+(skipped?`；預覽時已略過 ${skipped} 列`:''),errors:res.errors||[]};
       render();
     }).catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
@@ -1952,6 +2055,7 @@ function onBind(e){
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
   if(scope==='ar'){ S.aiRange[key]=val; if(e.type==='change') render(); return; }
+  if(scope==='m'&&S.modal&&S.modal.kind==='export'&&(key==='from'||key==='to'||key==='who')){ S.modal[key]=val; if(e.type==='change') renderModal(); return; }
   if(scope==='st'){ S.sets[key]=val; return; }
   if(b==='sfwho'){ S.sf.who=val; render(); return; }
   if(scope==='form') S.form[key]=val;
@@ -1962,7 +2066,7 @@ function onBind(e){
   }
 }
 document.addEventListener('input',onBind);
-document.addEventListener('change',e=>{ if(e.target.type==='checkbox'||e.target.tagName==='SELECT'||(e.target.type==='date'&&/^ar\./.test(e.target.dataset.bind||''))) onBind(e); });
+document.addEventListener('change',e=>{ if(e.target.type==='checkbox'||e.target.tagName==='SELECT'||(e.target.type==='date'&&/^(ar|m)\./.test(e.target.dataset.bind||''))) onBind(e); });
 
 /* 圖表滑過提示 */
 const tip=$('#tip');
@@ -2043,6 +2147,13 @@ const Demo=(()=>{
     api_login(acc,pw){ const p=ppl.find(x=>x.account&&x.account.toLowerCase()===String(acc).toLowerCase()); if(!p||p.password!==pw) throw new Error('帳號或密碼錯誤'); return {token:'demo:'+p.name,data:boot(p.name)}; },
     api_logout(){ return true; },
     api_people(a){ mustMgr(a); return adm(); },
+    api_exportRange(a,from,to,who){ const mgr=role(a)==='主管'; const names=mgr?(who?[who]:ppl.map(p=>p.name)):[a];
+      const by={}; tasks.forEach(t=>by[t.id]=t);
+      const logs=log.filter(l=>{ const t=by[l.id]; const d=String(l.time).slice(0,10); return t&&d>=from&&d<=to&&names.indexOf(t.assignee)>=0; })
+        .map(l=>{ const t=by[l.id]; return {day:String(l.time).slice(0,10),time:String(l.time).slice(11,16),id:l.id,assignee:t.assignee,actor:l.actor,project:t.project,content:t.content,type:t.type,status:l.status,progress:l.progress,note:l.content||'',source:l.source}; });
+      const tl=tasks.filter(t=>names.indexOf(t.assignee)>=0).map(t=>({id:t.id,assignee:t.assignee,type:t.type,project:t.project,content:t.content,status:t.status,progress:t.progress,latest:t.latest,waitingFor:t.waitingFor,assignedAt:t.assignedAt.slice(0,10),startedAt:(t.startedAt||'').slice(0,10),doneAt:(t.doneAt||'').slice(0,10),due:t.due,overdue:isOverdue(t)}));
+      return {from,to,who:mgr?who:a,names,logs,tasks:tl,reports:Object.keys(reported).filter(n=>names.indexOf(n)>=0).map(n=>({day:fd(now()),name:n,time:'17:30',text:'今日工作進度報告如下：',ai:''}))}; },
+    api_batchReport(a,rows){ const r={updated:0,errors:[]}; rows.forEach(x=>{ try{ this.api_report(a,x.id,{status:x.status,progress:x.progress,content:x.content,waitingFor:x.waitingFor}); r.updated++; }catch(e){ r.errors.push('第 '+x._row+' 列：'+e.message); } }); r.data=boot(a); return r; },
     api_plaza(a){ const order=['od','review','wait','pause','doing','todo'];
       return {me:a,people:ppl.map(p=>{ const mine=tasks.filter(t=>t.assignee===p.name), open=mine.filter(t=>t.status!=='完成');
         const bal=open.map(t=>isOverdue(t)?'od':t.status==='待確認'?'review':t.status==='等待外部'?'wait':t.status==='暫停'?'pause':t.status==='未開始'?'todo':'doing').sort((x,y)=>order.indexOf(x)-order.indexOf(y));

@@ -768,6 +768,72 @@ function api_aiRange(token, from, to, who) {
   return gemini_(prompt);
 }
 
+/* ───────────── Excel 匯出（分天）與批次回報 ───────────── */
+
+/** 匯出區間資料；員工只能匯出自己，主管可指定人員（空白＝全部） */
+function api_exportRange(token, from, to, who) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error('請選擇正確的日期區間');
+  if (dayDiffStr_(from, to) > 366) throw new Error('區間最長一年');
+  const mgr = me.role === '主管';
+  const names = mgr ? (who ? [who] : people.map(p => p.name)) : [actor];
+  const inNames = n => names.indexOf(n) >= 0;
+  const tasks = readTasks_();
+  const byId = {}; tasks.forEach(t => { byId[t.id] = t; });
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const logs = sheet_(SHEET.LOG).getDataRange().getValues().slice(1).filter(r => {
+    const d = dateStr_(r[0]); const t = byId[String(r[1])];
+    const owner = t ? t.assignee : String(r[2]);
+    return d >= from && d <= to && inNames(owner);
+  }).map(r => {
+    const t = byId[String(r[1])] || {};
+    return { day: dateStr_(r[0]), time: fmt_(r[0], 'HH:mm'), id: String(r[1]), assignee: t.assignee || String(r[2]), actor: String(r[2]),
+      project: t.project || '', content: t.content || '', type: t.type || '', status: String(r[3]), progress: r[4] === '' ? '' : r[4], note: String(r[5] || ''), source: String(r[6] || '') };
+  });
+  const list = tasks.filter(t => inNames(t.assignee) && dateStr_(t.assignedAt) <= to && (t.status !== '完成' || dateStr_(t.doneAt) >= from))
+    .map(t => ({ id: t.id, assignee: t.assignee, type: t.type, project: t.project, content: t.content, status: t.status, progress: t.progress, latest: t.latest,
+      waitingFor: t.waitingFor, assignedAt: dateStr_(t.assignedAt), startedAt: dateStr_(t.startedAt), doneAt: dateStr_(t.doneAt), due: dateStr_(t.due), overdue: isOverdue_(t, today) }));
+  const rsh = ss_().getSheetByName(SHEET.REPORTS);
+  const reports = (rsh && rsh.getLastRow() > 1 ? rsh.getRange(2, 1, rsh.getLastRow() - 1, 6).getValues() : [])
+    .filter(r => { const d = dateStr_(r[0]); return d >= from && d <= to && inNames(String(r[1]).trim()); })
+    .map(r => ({ day: dateStr_(r[0]), name: String(r[1]).trim(), time: fmt_(r[2], 'HH:mm'), text: String(r[3] || ''), ai: String(r[4] || '') }));
+  return { from, to, who: mgr ? (who || '') : actor, names, logs, tasks: list, reports };
+}
+function dayDiffStr_(a, b) { return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5); }
+
+/** 批次回報今日進度（Excel）：每列 {id, status, progress, content, waitingFor} */
+function api_batchReport(token, rows) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const result = { updated: 0, errors: [] };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const map = {}; readTasks_().forEach(t => { map[t.id] = t; });
+    (rows || []).forEach((r, i) => {
+      const rowNo = r._row || i + 2;
+      const id = String(r.id || '').trim().toUpperCase();
+      const t = map[id];
+      try {
+        if (!t) throw new Error('找不到工作 #' + id);
+        checkCanReport_(t, actor, people);
+        const st = r.status ? normStatus_(r.status) : '';
+        if (r.status && !st) throw new Error('看不懂狀態「' + r.status + '」');
+        applyReport_(t, actor, { status: st, progress: r.progress, content: String(r.content || '').trim(), waitingFor: String(r.waitingFor || '').trim() }, 'Excel', '', people);
+        result.updated++;
+      } catch (e) {
+        result.errors.push('第 ' + rowNo + ' 列：' + e.message);
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  result.data = bootstrap_(actor);
+  return result;
+}
+
 /* ───────────── 花園廣場 ───────────── */
 
 /** 廣場資料：每個人的造型、件數（只有數字，不含工作內容）與位置 */
