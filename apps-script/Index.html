@@ -206,6 +206,9 @@ table.data th{color:var(--muted);font-weight:600;background:var(--gray-soft)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--blue);color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;box-shadow:0 8px 24px rgba(45,91,227,.3);z-index:60;max-width:calc(100vw - 48px)}
 .toast.err{background:#D63B6F}
 .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+.as-tools{float:right;display:inline-flex;gap:12px}
+.lnk{border:none;background:none;color:var(--blue);font-weight:600;font-size:13px;cursor:pointer;padding:0}
+.as-note{margin-top:8px;font-size:13px;color:var(--blue);background:var(--blue-soft);border-radius:4px;padding:6px 10px}
 .prev tr.skip td{color:var(--faint);background:#FAFAFC}
 .vt{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;background:#fff;align-self:center}
 .vt button{border:none;background:#fff;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--muted)}
@@ -395,7 +398,7 @@ const S = {
   me:null, token:null, admin:null, sets:null, isSuper:false, aiEnabled:false, reportedToday:false, aiPerson:{}, aiRange:null, tab:'mine', modal:null, login:{account:'',password:'',err:''},
   f:{type:'全部', status:'未完成', who:'全部', src:'全部', q:''},
   sf:{period:'全部', src:'全部', who:''},
-  form:{type:'專案執行', project:'', content:'', assignee:'', due:'', link:'', notify:true, notifyDone:false}
+  form:{type:'專案執行', project:'', content:'', assignees:[], due:'', link:'', notify:true, notifyDone:false}
 };
 const ICON = {
   grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>',
@@ -757,15 +760,16 @@ function assignHtml(){
     <div class="form-grid">
       <div class="field full"><label>類型</label><div class="pills">
         ${['專案執行','臨時代辦'].map(v=>`<button class="pill ${f.type===v?'on':''}" data-act="formType" data-v="${v}"><span class="dot" style="background:${v==='臨時代辦'?TEMP_COLOR:'#2D5BE3'}"></span>${v}</button>`).join('')}</div></div>
+      <div class="field full"><label>承辦人<span class="opt">可複選，每人各建立一件、各自回報進度</span>
+          <span class="as-tools"><button class="lnk" data-act="asAll">全選員工</button><button class="lnk" data-act="asNone">清除</button></span></label>
+        <div class="pills">${S.people.slice().sort((a,b)=>(a.role==='主管')-(b.role==='主管')).map(p=>`<button class="pill who-pill ${f.assignees.indexOf(p.name)>=0?'on':''}" data-act="asPick" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}${p.role==='主管'?' 👑':''}${f.assignees.indexOf(p.name)>=0?' ✓':''}</button>`).join('')}</div>
+        ${f.assignees.length>1?`<div class="as-note">已選 ${f.assignees.length} 人：${f.assignees.map(esc).join('、')}，送出後會建立 ${f.assignees.length} 件工作</div>`:''}</div>
       <div class="field"><label>專案名稱${f.type==='臨時代辦'?'<span class="opt">可留空</span>':''}</label>
         <input class="inp" list="projList" data-bind="form.project" value="${esc(f.project)}" placeholder="例：北市圖資案">${projDatalist()}</div>
-      <div class="field"><label>承辦人</label>
-        <select class="inp" data-bind="form.assignee"><option value="">請選擇</option>
-        ${S.people.map(p=>`<option ${f.assignee===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="form.due" value="${esc(f.due)}" min="${S.today}"></div>
       <div class="field full"><label>工作內容</label>
         <textarea class="inp" data-bind="form.content" placeholder="例：確認福國社宅初驗複驗總結會議紀錄與表單內容">${esc(f.content)}</textarea></div>
-      <div class="field"><label>需完成日期</label><input class="inp" type="date" data-bind="form.due" value="${esc(f.due)}" min="${S.today}"></div>
-      <div class="field"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https:\/\/"></div>
+      <div class="field full"><label>相關連結<span class="opt">選填</span></label><input class="inp" data-bind="form.link" value="${esc(f.link)}" placeholder="https:\/\/"></div>
     </div>
     <div class="form-foot">
       <div style="display:flex;gap:22px;flex-wrap:wrap">
@@ -2028,14 +2032,18 @@ const A = {
       .catch(err=>{ document.body.classList.remove('busy'); onErr(err); });
   },
   formType(el){ S.form.type=el.dataset.v; render(); },
+  asPick(el){ const a=S.form.assignees, n=el.dataset.v, i=a.indexOf(n); if(i>=0) a.splice(i,1); else a.push(n); render(); },
+  asAll(){ S.form.assignees=S.people.filter(p=>p.role!=='主管').map(p=>p.name); render(); },
+  asNone(){ S.form.assignees=[]; render(); },
   submitAssign(){
     const f=S.form;
     if(f.type==='專案執行' && !f.project.trim()) return toast('專案執行請填專案名稱',true);
     if(!f.content.trim()) return toast('請填寫工作內容',true);
-    if(!f.assignee) return toast('請選擇承辦人',true);
+    if(!f.assignees.length) return toast('請選擇承辦人（可複選）',true);
     if(!f.due) return toast('請選擇需完成日期',true);
-    run('api_createTask',[{...f}],'已指派給 '+f.assignee+(f.notify?'，並寄出通知':'')).then(()=>{
-      S.form={type:f.type,project:f.project,content:'',assignee:'',due:'',link:'',notify:f.notify,notifyDone:false}; render();
+    const names=f.assignees.slice();
+    run('api_createTask',[{...f,assignees:names}],'已指派給 '+names.join('、')+(names.length>1?'（共 '+names.length+' 件）':'')+(f.notify?'，並寄出通知':'')).then(()=>{
+      S.form={type:f.type,project:f.project,content:'',assignees:[],due:'',link:'',notify:f.notify,notifyDone:false}; render();
     });
   }
 };
@@ -2183,6 +2191,7 @@ const Demo=(()=>{
       return {added:rows.length,errors:[],data:boot(a)}; },
     api_bootstrap:boot,
     api_createTask(actor,p){
+      if(role(actor)==='主管'&&Array.isArray(p.assignees)&&p.assignees.length){ let r; p.assignees.forEach(n=>{ const q={...p,assignee:n}; delete q.assignees; r=this.api_createTask(actor,q); }); return r; }
       const mgr=role(actor)==='主管'; const assignee=mgr?p.assignee:actor;
       seq++; const id='T'+String(seq).padStart(4,'0');
       const src=(mgr&&assignee!==actor)?'主管交辦':'自行新增';

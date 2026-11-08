@@ -263,6 +263,14 @@ function api_createTask(token, p) {
   const me = mustPerson_(people, actor);
   const mgr = me.role === '主管';
   if (!p || !String(p.content || '').trim() || !p.due) throw new Error('請填寫工作內容與需完成日期');
+  // 主管可一次指派給多人（每人各建立一件，各自回報進度）
+  if (mgr && Array.isArray(p.assignees) && p.assignees.length) {
+    const list = p.assignees.map(x => String(x).trim()).filter((x, i, arr) => x && arr.indexOf(x) === i);
+    list.forEach(n => { if (!findPerson_(people, n)) throw new Error('人員表找不到承辦人：' + n); });
+    let last;
+    list.forEach(n => { const q = Object.assign({}, p, { assignee: n }); delete q.assignees; last = api_createTask(token, q); });
+    return last;
+  }
   const assignee = mgr ? p.assignee : actor;
   if (!assignee) throw new Error('請選擇承辦人');
   if (!findPerson_(people, assignee)) throw new Error('人員表找不到承辦人：' + assignee);
