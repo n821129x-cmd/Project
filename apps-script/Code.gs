@@ -15,8 +15,11 @@
  *   員工：自行新增工作、開始、回報、提報完成（送主管確認），只看得到自己的工作
  */
 
-const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報' };
+const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報', LEAVES: '請假' };
 const REPORT_COLS = ['日期', '姓名', '寄出時間', '回報說明', 'AI摘要', '工作數'];
+const LEAVE_COLS = ['ID', '姓名', '開始日期', '結束日期', '時段', '假別', '原因', '登記人', '登記時間'];
+const LEAVE_KINDS = ['特休', '事假', '病假', '公假', '補休', '婚假', '喪假', '產假', '陪產假', '其他'];
+const LEAVE_PARTS = ['全天', '上午', '下午'];
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const DEFAULT_HEADER = '今日工作進度報告如下：';
 function reportHeader_(cfg) { return String((cfg || getConfig_())['回報開頭'] || DEFAULT_HEADER).trim() || DEFAULT_HEADER; }
@@ -89,6 +92,7 @@ function setup() {
   ensureSheet_(ss, SHEET.LOG, LOG_COLS);
   ensureSheet_(ss, SHEET.CONFIG, ['項目', '值', '說明'], CONFIG_DEFAULTS);
   ensureSheet_(ss, SHEET.REPORTS, REPORT_COLS);
+  ensureSheet_(ss, SHEET.LEAVES, LEAVE_COLS).getRange('A:G').setNumberFormat('@');
   ['工作表1', 'Sheet1'].forEach(n => {
     const s = ss.getSheetByName(n);
     if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
@@ -251,6 +255,7 @@ function bootstrap_(actor) {
     aiEnabled: !!geminiKey_(),
     reportedToday: me ? reportedOn_(me.name, fmt_(new Date(), 'yyyy-MM-dd')) : false,
     myEmail: me ? me.email : '',
+    leaveToday: leaveMap_(readLeaves_(), fmt_(new Date(), 'yyyy-MM-dd')),
     config: { salutation: reportHeader_(cfg), title: String(cfg['系統名稱'] || '每日工作追蹤') },
     today: fmt_(new Date(), 'yyyy-MM-dd')
   };
@@ -806,7 +811,8 @@ function api_exportRange(token, from, to, who) {
   const reports = (rsh && rsh.getLastRow() > 1 ? rsh.getRange(2, 1, rsh.getLastRow() - 1, 6).getValues() : [])
     .filter(r => { const d = dateStr_(r[0]); return d >= from && d <= to && inNames(String(r[1]).trim()); })
     .map(r => ({ day: dateStr_(r[0]), name: String(r[1]).trim(), time: fmt_(r[2], 'HH:mm'), text: String(r[3] || ''), ai: String(r[4] || '') }));
-  return { from, to, who: mgr ? (who || '') : actor, names, logs, tasks: list, reports };
+  const leaves = readLeaves_().filter(l => l.from <= to && l.to >= from && inNames(l.name));
+  return { from, to, who: mgr ? (who || '') : actor, names, logs, tasks: list, reports, leaves };
 }
 function dayDiffStr_(a, b) { return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5); }
 
@@ -841,6 +847,103 @@ function api_batchReport(token, rows) {
   return result;
 }
 
+/* ───────────── 請假 ───────────── */
+
+function readLeaves_() {
+  const sh = ss_().getSheetByName(SHEET.LEAVES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, LEAVE_COLS.length).getValues()
+    .filter(r => String(r[0]).trim() && String(r[1]).trim())
+    .map(r => {
+      const from = dateStr_(r[2]);
+      return {
+        id: String(r[0]).trim(), name: String(r[1]).trim(), from: from, to: dateStr_(r[3]) || from,
+        part: LEAVE_PARTS.indexOf(String(r[4]).trim()) >= 0 ? String(r[4]).trim() : '全天',
+        kind: String(r[5] || '').trim(), reason: String(r[6] || ''), by: String(r[7] || ''),
+        at: r[8] instanceof Date ? fmt_(r[8], 'yyyy-MM-dd HH:mm') : String(r[8] || '')
+      };
+    });
+}
+
+/** 某一天誰請假：{ 姓名: '全天'|'上午'|'下午' }（同一天上午＋下午都請＝全天） */
+function leaveMap_(leaves, day) {
+  const m = {};
+  leaves.forEach(l => {
+    if (day < l.from || day > l.to) return;
+    const cur = m[l.name];
+    m[l.name] = !cur ? l.part : (cur === l.part ? cur : '全天');
+  });
+  return m;
+}
+
+function leaveOn_(name, day) { return leaveMap_(readLeaves_().filter(l => l.name === name), day)[name] || ''; }
+
+/** 主管看全部；員工只看自己。只回傳近 60 天與之後的紀錄 */
+function api_leaves(token) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  const since = fmt_(new Date(Date.now() - 60 * 864e5), 'yyyy-MM-dd');
+  const list = readLeaves_().filter(l => l.to >= since && (me.role === '主管' || l.name === actor))
+    .sort((a, b) => a.from < b.from ? 1 : a.from > b.from ? -1 : 0);
+  return { leaves: list, kinds: LEAVE_KINDS, today: fmt_(new Date(), 'yyyy-MM-dd') };
+}
+
+/** 員工只能幫自己請假；主管可以幫任何人登記 */
+function api_addLeave(token, p) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  p = p || {};
+  const name = me.role === '主管' ? String(p.name || actor).trim() : actor;
+  if (!findPerson_(people, name)) throw new Error('找不到人員「' + name + '」');
+  const from = String(p.from || '').trim(), to = String(p.to || p.from || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw new Error('請選擇請假日期');
+  if (from > to) throw new Error('結束日期不能早於開始日期');
+  if (dayDiffStr_(from, to) > 90) throw new Error('一次最多登記 90 天');
+  const part = LEAVE_PARTS.indexOf(p.part) >= 0 ? p.part : '全天';
+  if (part !== '全天' && from !== to) throw new Error('半天假只能選同一天');
+  const kind = String(p.kind || '').trim() || '事假';
+  const reason = String(p.reason || '').trim().slice(0, 200);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const clash = readLeaves_().find(l => l.name === name && l.from <= to && l.to >= from &&
+      (l.part === '全天' || part === '全天' || l.part === part));
+    if (clash) throw new Error(name + ' 在 ' + clash.from + (clash.to !== clash.from ? '～' + clash.to : '') + ' 已經登記過' + clash.part + '請假');
+    const id = 'L' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
+    sheet_(SHEET.LEAVES).appendRow([id, name, from, to, part, kind, reason, actor, new Date()]);
+  } finally {
+    lock.releaseLock();
+  }
+  const r = api_leaves(token);
+  r.data = bootstrap_(actor);
+  return r;
+}
+
+/** 員工只能刪自己的；主管可以刪任何人的 */
+function api_deleteLeave(token, id) {
+  const actor = auth_(token);
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = sheet_(SHEET.LEAVES);
+    const n = sh.getLastRow() - 1;
+    const ids = n > 0 ? sh.getRange(2, 1, n, 2).getValues() : [];
+    const i = ids.findIndex(r => String(r[0]).trim() === String(id));
+    if (i < 0) throw new Error('找不到這筆請假');
+    if (me.role !== '主管' && String(ids[i][1]).trim() !== actor) throw new Error('只能刪除自己的請假');
+    sh.deleteRow(i + 2);
+  } finally {
+    lock.releaseLock();
+  }
+  const r = api_leaves(token);
+  r.data = bootstrap_(actor);
+  return r;
+}
+
 /* ───────────── 花園廣場 ───────────── */
 
 /** 廣場資料：每個人的造型、件數（只有數字，不含工作內容）與位置 */
@@ -849,6 +952,7 @@ function api_plaza(token) {
   const today = fmt_(new Date(), 'yyyy-MM-dd');
   const tasks = readTasks_();
   const props = PropertiesService.getScriptProperties().getProperties();
+  const lv = leaveMap_(readLeaves_(), today);
   return {
     me: actor,
     people: getPeople_().map(p => {
@@ -867,6 +971,7 @@ function api_plaza(token) {
         doneWeek: mine.filter(t => t.status === '完成' && t.doneAt instanceof Date && (Date.now() - t.doneAt.getTime()) < 7 * 864e5).length,
         bal: open.map(t => isOverdue_(t, today) ? 'od' : t.status === '待確認' ? 'review' : t.status === '等待外部' ? 'wait' : t.status === '暫停' ? 'pause' : t.status === '未開始' ? 'todo' : 'doing')
           .sort((x, y) => ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(x) - ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(y)),
+        leave: lv[p.name] || '',
         x: pos ? pos.x : null, y: pos ? pos.y : null
       };
     })
@@ -1234,8 +1339,9 @@ function eveningReminder_(force) {
   if (!force && Number(fmt_(now, 'u')) >= 6 && String(cfg['週末寄送摘要']) !== '是') return;
   const today = fmt_(now, 'yyyy-MM-dd');
   const tasks = readTasks_();
+  const lv = leaveMap_(readLeaves_(), today);
   getPeople_().forEach(p => {
-    if (p.role === '主管' || !p.email || reportedOn_(p.name, today)) return;
+    if (p.role === '主管' || !p.email || reportedOn_(p.name, today) || lv[p.name] === '全天') return;
     const mine = orderTasks_(tasks.filter(t => t.assignee === p.name && t.status !== '完成'));
     if (!mine.length) return;
     const url = String(cfg['系統網址'] || '');
@@ -1327,9 +1433,11 @@ function dailyDigest_(force) {
   const md = fmt_(now, 'M/d');
   const recentDone = t => t.status === '完成' && t.doneAt instanceof Date && now - t.doneAt < 864e5;
 
-  // 員工：自己的清單
+  const leaves = readLeaves_();
+  const lvToday = leaveMap_(leaves, today);
+  // 員工：自己的清單（今天全天請假就不寄）
   people.forEach(p => {
-    if (!p.email) return;
+    if (!p.email || lvToday[p.name] === '全天') return;
     const mine = tasks.filter(t => t.assignee === p.name && t.status !== '完成');
     if (!mine.length) return;
     const text = buildReportText_(mine, sal, today, true);
@@ -1366,8 +1474,11 @@ function dailyDigest_(force) {
       alerts.push('🕓 等待外部 ' + Math.floor((now - t.updatedAt) / 864e5) + ' 天未更新｜' + t.assignee + '｜' + lineCore_(t));
   });
   const lastDay = prevWorkday_(now);
-  const missing = people.filter(p => p.role !== '主管' && tasks.some(t => t.assignee === p.name && t.status !== '完成') && !reportedOn_(p.name, lastDay));
+  const lvLast = leaveMap_(leaves, lastDay);
+  const missing = people.filter(p => p.role !== '主管' && lvLast[p.name] !== '全天' && tasks.some(t => t.assignee === p.name && t.status !== '完成') && !reportedOn_(p.name, lastDay));
   if (missing.length) alerts.unshift('📭 ' + lastDay.slice(5).replace('-', '/') + ' 未寄日報：' + missing.map(p => p.name).join('、'));
+  const onLeave = Object.keys(lvToday);
+  if (onLeave.length) alerts.unshift('🏖 今日請假：' + onLeave.map(n => lvToday[n] === '全天' ? n : n + '（' + lvToday[n] + '）').join('、'));
   const sections = [];
   people.forEach(p => {
     const list = tasks.filter(t => t.assignee === p.name && (t.status !== '完成' || recentDone(t)));
@@ -1377,8 +1488,8 @@ function dailyDigest_(force) {
   managers.forEach(m => {
     const mine = n => { const p = findPerson_(people, n); return m.super || !p || !p.supervisor || supList_(p.supervisor).indexOf(m.name) >= 0 || n === m.name; };
     const al = alerts.filter(a => { const mm = a.match(/｜([^｜]+)｜/); return !mm || mine(mm[1]); })
-      .map(a => /未寄日報/.test(a) ? a.replace(/：(.*)$/, (x, list) => { const ns = list.split('、').filter(mine); return ns.length ? '：' + ns.join('、') : ''; }) : a)
-      .filter(a => !/未寄日報$/.test(a) && !/未寄日報：$/.test(a));
+      .map(a => /未寄日報|今日請假/.test(a) ? a.replace(/：(.*)$/, (x, list) => { const ns = list.split('、').filter(n => mine(n.replace(/（.*）$/, ''))); return ns.length ? '：' + ns.join('、') : ''; }) : a)
+      .filter(a => !/(未寄日報|今日請假)：?$/.test(a));
     const sec = sections.filter(s => mine(s.name));
     if (!sec.length && !al.length) return;
     const plain = (al.length ? '【需要注意】\n' + al.join('\n') + '\n\n' : '') + sec.map(s => '■ ' + s.name + '\n' + s.text).join('\n\n');

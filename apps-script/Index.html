@@ -303,6 +303,16 @@ button.tile .hint2{font-size:11.5px;color:var(--faint);margin-top:2px}
 .btn.ai:hover{filter:brightness(1.05)}
 .sec-title .btn{margin-left:auto}
 .person-ai{margin:-4px 0 14px}
+.lv-chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:#FFF1DC;color:#A85A06;white-space:nowrap}
+.lv-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.lv-list{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.lv-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px dashed var(--line);font-size:13.5px}
+.lv-row:last-child{border-bottom:0}
+.lv-row .d{font-weight:600;min-width:150px}
+.lv-row .r{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-row.past{opacity:.55}
+.lv-row.now{background:#FFF8EC;border-radius:8px}
+.lv-h{font-size:12.5px;font-weight:700;color:var(--muted);margin:12px 0 2px}
 .sent-chip{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--teal-soft);color:#0E7466;align-self:center}
 .rep-sec{font-weight:700;font-size:14.5px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
 .rep-sec .n{width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;display:inline-grid;place-items:center}
@@ -473,7 +483,7 @@ function onErr(err){
   toast(msg,true);
 }
 function logoutLocal(){ S.token=null; S.me=null; S.tasks=[]; S.modal=null; S.tab='mine'; store('dtt.token',null); }
-function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.myEmail=res.myEmail||''; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
+function applyData(res){ S.isSuper=!!res.isSuper; S.aiEnabled=!!res.aiEnabled; S.reportedToday=!!res.reportedToday; S.myEmail=res.myEmail||''; S.leaveToday=res.leaveToday||{}; S.me=res.me||null; S.people=res.people; S.projects=res.projects||[]; S.tasks=res.tasks; S.config=res.config; S.today=res.today; buildColorMap(); }
 let toastTimer;
 function toast(msg,err){
   const el=$('#toast'); el.innerHTML=`<div class="toast ${err?'err':''}">${esc(msg)}</div>`;
@@ -623,7 +633,7 @@ function sideHtml(){
   const ppl=S.people.slice().sort((a,b)=>(a.role==='主管')-(b.role==='主管'));
   const whoHtml=`<h4>${ICON.team}人員<span class="muted" style="font-weight:400;font-size:12.5px;margin-left:4px">${S.people.length} 人</span></h4><div class="pills">
     <button class="pill ${S.f.who==='全部'?'on':''}" data-act="f" data-k="who" data-v="全部">全部<span class="n">${wl.length}</span></button>
-    ${ppl.map(p=>`<button class="pill who-pill ${S.f.who===p.name?'on':''} ${wc[p.name]?'':'zero'}" data-act="f" data-k="who" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}${p.role==='主管'?' 👑':''}<span class="n">${wc[p.name]||0}</span></button>`).join('')}</div>`;
+    ${ppl.map(p=>`<button class="pill who-pill ${S.f.who===p.name?'on':''} ${wc[p.name]?'':'zero'}" data-act="f" data-k="who" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}${p.role==='主管'?' 👑':''}${S.leaveToday&&S.leaveToday[p.name]?' 🏖':''}<span class="n">${wc[p.name]||0}</span></button>`).join('')}</div>`;
   return `<div class="search">${ICON.search}<input data-bind="q" value="${esc(S.f.q)}" placeholder="搜尋工作、專案或人名"></div>
     ${S.tab==='team'?whoHtml:''}
     <h4>${ICON.type}類型</h4>${pills('type',['全部','專案執行','臨時代辦'],null,{'專案執行':'#2D5BE3','臨時代辦':TEMP_COLOR})}
@@ -644,11 +654,19 @@ function tilesHtml(list){
     ${T('c-teal','近 7 天完成','近7天完成',doneWeek)}</div>`;
 }
 
+function lvChip(name,label){
+  const v=S.leaveToday&&S.leaveToday[name]; if(!v) return '';
+  return `<span class="lv-chip" title="今天請假（${esc(v)}）">🏖 ${esc(label||'請假')}${v==='全天'?'':'（'+esc(v)+'）'}</span>`;
+}
+function leaveNote(){
+  const ks=Object.keys(S.leaveToday||{}); if(!ks.length) return '';
+  return `<div class="note" style="margin:0 0 12px;background:#FFF8EC;border-color:#F5D9A8">🏖 今天請假：${ks.map(n=>`<b>${esc(n)}</b>${S.leaveToday[n]==='全天'?'':'（'+esc(S.leaveToday[n])+'）'}`).join('、')}　<span class="muted" style="font-size:12.5px">全天請假的人當天不會被提醒寄日報</span></div>`;
+}
 function mainHtml(){
   const list=visible(); const mine=S.tab==='mine';
   const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
-    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}<button class="btn" data-act="openExport">📤 匯出 Excel</button><button class="btn" data-act="openBatch">📥 批次回報</button><button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:`<button class="btn" data-act="openExport">📤 匯出 Excel</button>`}</div></div>`;
-  const tiles=tilesHtml(baseList())+filterNote(list.length);
+    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}${lvChip(S.me,'今天請假')}<button class="btn" data-act="openLeave">🏖 請假</button><button class="btn" data-act="openExport">📤 匯出 Excel</button><button class="btn" data-act="openBatch">📥 批次回報</button><button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:`<button class="btn" data-act="openLeave">🏖 請假管理</button><button class="btn" data-act="openExport">📤 匯出 Excel</button>`}</div></div>`;
+  const tiles=(mine?'':leaveNote())+tilesHtml(baseList())+filterNote(list.length);
   if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
   const groups=[];
   if(mine){
@@ -657,7 +675,7 @@ function mainHtml(){
     S.people.forEach(p=>{ const items=orderTasks(list.filter(t=>t.assignee===p.name)); if(items.length) groups.push({k:p.name,items,person:true}); });
   }
   return `<section class="panel">${head}${tiles}${groups.map(g=>`
-    <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span>${g.person&&S.aiEnabled?`<button class="btn sm ai" data-act="aiPerson" data-v="${esc(g.k)}" ${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'disabled':''}>${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'<span class="spin"></span> 彙整中':SPARK+' AI 摘要'}</button>`:''}</h3>
+    <h3 class="sec-title">${g.person?avatar(g.k):`<span class="sw" style="background:${g.c}"></span>`}${esc(g.k)}<span class="cnt">${g.items.length}</span>${g.person?lvChip(g.k):''}${g.person&&S.aiEnabled?`<button class="btn sm ai" data-act="aiPerson" data-v="${esc(g.k)}" ${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'disabled':''}>${S.aiPerson[g.k]&&S.aiPerson[g.k].loading?'<span class="spin"></span> 彙整中':SPARK+' AI 摘要'}</button>`:''}</h3>
     ${g.person&&S.aiPerson[g.k]&&S.aiPerson[g.k].text?`<div class="ai-box person-ai"><div class="ai-tag">${SPARK} AI 摘要</div>${mdHtml(S.aiPerson[g.k].text)}</div>`:''}
     ${taskList(g.items,S.tab)}`).join('')}</section>`;
 }
@@ -1157,6 +1175,7 @@ function pzShowCard(name,onlyMove){
   if(!onlyMove||el.hidden){
     const p=c.p, rl=p.super?'🦖 管理者':(p.role==='主管'?'👑 主管':'員工');
     el.innerHTML=`<div class="pz-card-h">${avatar(p.name)}<b>${esc(p.name)}</b><span class="role ${p.role==='主管'?'mgr':''}">${rl}</span><button class="x" data-act="pzClose">×</button></div>
+      ${p.leave?`<div class="lv-chip" style="margin:0 0 8px">🏖 今天請假${p.leave==='全天'?'':'（'+esc(p.leave)+'）'}</div>`:''}
       <div class="pz-stats"><div><b>${p.open}</b>未完成</div><div class="od"><b>${p.overdue}</b>逾期</div><div class="rv"><b>${p.review}</b>待確認</div><div class="wt"><b>${p.waiting}</b>等待外部</div><div class="dn"><b>${p.doneWeek}</b>7 天內完成</div></div>
       ${p.name===S.me?'<div class="pz-me">這是你！<button class="btn sm purple" data-act="pzAvatar">換造型</button></div>':''}`;
     el.hidden=false;
@@ -1380,7 +1399,7 @@ function pzDino(g,x,y,st,t,c){
 }
 function pzTag(g,c){
   const p=c.p, isMe=p.name===S.me, x=c.x, y=c.y+16;
-  const label=p.name+(p.open?'　'+p.open+' 件':'　✨');
+  const label=(p.leave?'🏖 ':'')+p.name+(p.open?'　'+p.open+' 件':'　✨');
   g.font='600 12px "Noto Sans TC",Inter,sans-serif'; g.textAlign='center'; g.textBaseline='middle';
   const w=g.measureText(label).width+16;
   g.fillStyle=isMe?'#2D5BE3':'rgba(255,255,255,.92)'; pzRound(g,x-w/2,y-9,w,18,9); g.fill();
@@ -1484,18 +1503,21 @@ function buildExport(d){
   const row=l=>[l.day,wdOf(l.day),l.time,l.assignee,l.id,l.project||'臨時代辦',l.content,l.status,l.progress===''?'':l.progress,l.note,l.actor,l.source];
   XLSX.utils.book_append_sheet(wb,sheetFrom([H,...logs.map(row)],[11,5,6,8,8,20,36,9,6,40,8,7]),'每日明細');
   /* 每日彙整 */
-  const sum=[['日期','星期','承辦人','回報筆數','更新工作件數','提報完成件數','寄出日報']];
+  const lvs=d.leaves||[];
+  const lvOf=(n,day)=>{ const hit=lvs.filter(l=>l.name===n&&l.from<=day&&l.to>=day); if(!hit.length) return ''; return hit.map(l=>(l.kind||'請假')+(l.part==='全天'?'':'（'+l.part+'）')).join('、'); };
+  const sum=[['日期','星期','承辦人','回報筆數','更新工作件數','提報完成件數','寄出日報','請假']];
   const days=[]; for(let x=d.from;x<=d.to;x=addDays(x,1)) days.push(x);
   days.forEach(day=>{ d.names.forEach(n=>{
-    const ls=logs.filter(l=>l.day===day&&l.assignee===n), rp=d.reports.some(r=>r.day===day&&r.name===n);
-    if(!ls.length&&!rp) return;
-    sum.push([day,wdOf(day),n,ls.length,new Set(ls.map(l=>l.id)).size,new Set(ls.filter(l=>l.status==='待確認'||l.status==='完成').map(l=>l.id)).size,rp?'是':'否']);
+    const ls=logs.filter(l=>l.day===day&&l.assignee===n), rp=d.reports.some(r=>r.day===day&&r.name===n), lv=lvOf(n,day);
+    if(!ls.length&&!rp&&!lv) return;
+    sum.push([day,wdOf(day),n,ls.length,new Set(ls.map(l=>l.id)).size,new Set(ls.filter(l=>l.status==='待確認'||l.status==='完成').map(l=>l.id)).size,rp?'是':'否',lv]);
   }); });
-  XLSX.utils.book_append_sheet(wb,sheetFrom(sum,[11,5,8,9,12,12,9]),'每日彙整');
+  XLSX.utils.book_append_sheet(wb,sheetFrom(sum,[11,5,8,9,12,12,9,14]),'每日彙整');
   /* 工作清單 */
   const TH=['編號','承辦人','類型','專案','工作內容','目前狀態','進度','最新回報','等待對象','指派日','開始日','完成日','需完成日期','逾期'];
   XLSX.utils.book_append_sheet(wb,sheetFrom([TH,...d.tasks.map(t=>[t.id,t.assignee,t.type,t.project||'臨時代辦',t.content,t.status,t.progress===''?'':t.progress,t.latest,t.waitingFor,t.assignedAt,t.startedAt,t.doneAt,t.due,t.overdue?'是':''])],[8,8,9,20,36,9,6,40,10,11,11,11,11,5]),'工作清單');
   if(d.reports.length) XLSX.utils.book_append_sheet(wb,sheetFrom([['日期','星期','承辦人','寄出時間','回報說明','AI 摘要'],...d.reports.map(r=>[r.day,wdOf(r.day),r.name,r.time,r.text,r.ai])],[11,5,8,8,70,50]),'日報');
+  if(lvs.length) XLSX.utils.book_append_sheet(wb,sheetFrom([['請假人','開始日期','結束日期','時段','假別','原因','登記人','登記時間'],...lvs.slice().sort((a,b)=>a.from<b.from?-1:1).map(l=>[l.name,l.from,l.to,l.part,l.kind,l.reason,l.by,l.at])],[8,11,11,6,7,30,8,16]),'請假');
   /* 每天一個工作表 */
   const DH=['時間','承辦人','編號','專案','工作內容','狀態','進度','回報內容','來源'];
   days.filter(day=>logs.some(l=>l.day===day)).slice(0,62).forEach(day=>{
@@ -1729,6 +1751,38 @@ function renderModal(){
         <div class="form-foot" style="margin-top:12px"><span></span><button class="btn purple" data-act="changePw">更新密碼</button></div>
       </div>`,`<button class="btn" data-act="closeModal">關閉</button>`);
   }
+  else if(m.kind==='leave'){
+    const mgr=isMgr(S.me), half=m.part!=='全天';
+    const kinds=m.kinds||['特休','事假','病假','公假','補休','其他'];
+    const rows=(m.list||[]).filter(l=>!m.who||l.name===m.who);
+    const fut=rows.filter(l=>l.to>=S.today).sort((a,b)=>a.from<b.from?-1:1), past=rows.filter(l=>l.to<S.today);
+    const canDel=l=>mgr||l.name===S.me;
+    const row=l=>{ const nowOn=l.from<=S.today&&l.to>=S.today;
+      return `<div class="lv-row ${l.to<S.today?'past':''} ${nowOn?'now':''}">
+      ${mgr?`${avatar(l.name)}<b style="min-width:52px">${esc(l.name)}</b>`:''}
+      <span class="d">${mdw(l.from)}${l.to!==l.from?' ～ '+mdw(l.to):''}</span>
+      <span class="lv-chip">${esc(l.kind||'請假')}${l.part==='全天'?'':'・'+esc(l.part)}</span>
+      <span class="r" title="${esc(l.reason)}">${esc(l.reason||'')}${l.by&&l.by!==l.name?`<span class="muted" style="font-size:12px">　由 ${esc(l.by)} 登記</span>`:''}</span>
+      ${canDel(l)?(m.confirmDel===l.id?`<button class="btn sm danger" data-act="lvDel" data-v="${esc(l.id)}">確定刪除？</button>`:`<button class="btn sm" data-act="lvDel" data-v="${esc(l.id)}">刪除</button>`):''}</div>`; };
+    html=shell(mgr?'請假管理':'請假',mgr?'可以幫任何人登記請假；全天請假的人當天不會被提醒寄日報':'登記後主管看得到；全天請假當天不會收到「未寄日報」提醒',`
+      <div class="lv-form">
+        ${mgr?`<div class="field"><label>請假人</label><select class="inp" data-bind="m.name">${S.people.map(p=>`<option ${m.name===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`:''}
+        <div class="field"><label>開始日期</label><input class="inp" type="date" data-bind="m.from" value="${esc(m.from)}"></div>
+        <div class="field"><label>結束日期${half?'<span class="opt">半天假只能同一天</span>':''}</label><input class="inp" type="date" data-bind="m.to" value="${esc(half?m.from:m.to)}" min="${esc(m.from)}" ${half?'disabled':''}></div>
+      </div>
+      <div class="pills" style="margin-top:8px">${['今天','明天'].map(k=>`<button class="pill" data-act="lvQuick" data-v="${k}">${k}</button>`).join('')}</div>
+      <div class="field" style="margin-top:12px"><label>時段</label><div class="pills">${['全天','上午','下午'].map(v=>`<button class="pill ${m.part===v?'on':''}" data-act="lvPart" data-v="${v}">${v}</button>`).join('')}</div></div>
+      <div class="field" style="margin-top:12px"><label>假別</label><div class="pills">${kinds.map(v=>`<button class="pill ${m.lk===v?'on':''}" data-act="lvKind" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div></div>
+      <div class="field" style="margin-top:12px"><label>原因<span class="opt">選填</span></label><input class="inp" data-bind="m.reason" value="${esc(m.reason||'')}" maxlength="200" placeholder="例如：家中有事、看診"></div>
+      <div class="form-foot" style="margin-top:14px"><span class="muted" style="font-size:12.5px">${mgr&&m.name!==S.me?`將幫 <b>${esc(m.name)}</b> 登記`:''}</span><button class="btn primary" data-act="submitLeave" ${m.saving?'disabled':''}>${m.saving?'<span class="spin"></span> 登記中…':'🏖 登記請假'}</button></div>
+      <div class="lv-list">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>${mgr?'請假紀錄':'我的請假'}</b>
+          ${mgr?`<select class="inp" style="width:auto;padding:4px 8px" data-bind="m.who"><option value="">全部人員</option>${S.people.map(p=>`<option ${m.who===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select>`:''}
+          <span class="muted" style="font-size:12.5px">近 60 天與之後</span></div>
+        ${!m.list?'<div class="loading" style="padding:18px">載入中…</div>':!rows.length?'<div class="muted" style="padding:14px 4px">目前沒有請假紀錄</div>':
+          (fut.length?`<div class="lv-h">今天與之後（${fut.length}）</div>${fut.map(row).join('')}`:'')+(past.length?`<div class="lv-h">過去（${past.length}）</div>${past.map(row).join('')}`:'')}
+      </div>`,`<button class="btn" data-act="closeModal">關閉</button>`,true);
+  }
   else if(m.kind==='export'){
     const mgr=isMgr(S.me), days=m.from&&m.to&&m.from<=m.to?dayDiff(m.from,m.to)+1:0;
     html=shell('匯出 Excel','依日期分天整理工作紀錄',`
@@ -1739,7 +1793,7 @@ function renderModal(){
       </div>
       <div class="pills" style="margin-top:12px">${QUICK.map(k=>{ const q=quickRange(k); return `<button class="pill ${q[0]===m.from&&q[1]===m.to?'on':''}" data-act="exQuick" data-v="${k}">${k}</button>`; }).join('')}</div>
       <div class="range-hint">${days?`📅 ${mdw(m.from)} ～ ${mdw(m.to)}，共 ${days} 天｜${mgr?(m.who?esc(m.who):'全部人員'):esc(S.me)}`:'<span style="color:#C23A72">請選擇正確的日期區間</span>'}</div>
-      <div class="note" style="margin-top:14px">Excel 內容：<b>每日明細</b>（每天每一筆回報）、<b>每日彙整</b>（每人每天的回報數、是否寄日報）、<b>工作清單</b>（區間內的工作與目前狀態）、<b>日報</b>，以及<b>每天一個工作表</b>。${mgr?'':'<br>員工只能匯出自己的資料。'}</div>`,
+      <div class="note" style="margin-top:14px">Excel 內容：<b>每日明細</b>（每天每一筆回報）、<b>每日彙整</b>（每人每天的回報數、是否寄日報）、<b>工作清單</b>（區間內的工作與目前狀態）、<b>日報</b>、<b>請假</b>，以及<b>每天一個工作表</b>。${mgr?'':'<br>員工只能匯出自己的資料。'}</div>`,
       cancel+`<button class="btn primary" data-act="doExport" ${days&&!m.loading?'':'disabled'}>${m.loading?'<span class="spin"></span> 產生中…':'下載 Excel'}</button>`,true);
   }
   else if(m.kind==='batch'){
@@ -1844,6 +1898,28 @@ const A = {
   },
   pzClose(){ PZ.sel=null; pzShowCard(null); },
   pzFind(){ const c=PZ.chars[S.me]; if(!c) return; PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  openLeave(){
+    S.modal={kind:'leave',color:'#E0791F',list:null,name:S.me,from:S.today,to:S.today,part:'全天',lk:'特休',reason:'',who:'',confirmDel:null}; renderModal();
+    api('api_leaves',S.token).then(r=>{ if(S.modal&&S.modal.kind==='leave'){ S.modal.list=r.leaves; S.modal.kinds=r.kinds; renderModal(); } }).catch(onErr);
+  },
+  lvQuick(el){ const d=el.dataset.v==='明天'?addDays(S.today,1):S.today; S.modal.from=d; S.modal.to=d; renderModal(); },
+  lvPart(el){ S.modal.part=el.dataset.v; if(el.dataset.v!=='全天') S.modal.to=S.modal.from; renderModal(); },
+  lvKind(el){ S.modal.lk=el.dataset.v; renderModal(); },
+  submitLeave(){
+    const m=S.modal; const to=m.part==='全天'?m.to:m.from;
+    if(!m.from||!to) return toast('請選擇請假日期',true);
+    if(m.from>to) return toast('結束日期不能早於開始日期',true);
+    m.saving=true; renderModal();
+    api('api_addLeave',S.token,{name:isMgr(S.me)?m.name:S.me,from:m.from,to,part:m.part,kind:m.lk,reason:m.reason}).then(r=>{
+      applyData(r.data); m.list=r.leaves; m.saving=false; m.reason=''; render();
+      toast((m.name&&m.name!==S.me?m.name+' 的':'')+'請假已登記'); if(PZ.data) pzLoad();
+    }).catch(err=>{ m.saving=false; if(S.modal===m) renderModal(); onErr(err); });
+  },
+  lvDel(el){
+    const m=S.modal, id=el.dataset.v;
+    if(m.confirmDel!==id){ m.confirmDel=id; return renderModal(); }
+    api('api_deleteLeave',S.token,id).then(r=>{ applyData(r.data); m.list=r.leaves; m.confirmDel=null; render(); toast('已刪除請假'); if(PZ.data) pzLoad(); }).catch(onErr);
+  },
   openExport(){ const q=quickRange('本週'); S.modal={kind:'export',from:q[0],to:q[1],who:'',color:'#14917F'}; renderModal(); },
   exQuick(el){ const q=quickRange(el.dataset.v); S.modal.from=q[0]; S.modal.to=q[1]; renderModal(); },
   doExport(){
@@ -1851,7 +1927,7 @@ const A = {
     m.loading=true; renderModal();
     api('api_exportRange',S.token,m.from,m.to,isMgr(S.me)?m.who:'').then(d=>{
       m.loading=false;
-      if(!d.logs.length&&!d.tasks.length&&!d.reports.length){ renderModal(); return toast('這段期間沒有任何工作紀錄',true); }
+      if(!d.logs.length&&!d.tasks.length&&!d.reports.length&&!(d.leaves||[]).length){ renderModal(); return toast('這段期間沒有任何工作紀錄',true); }
       const wb=buildExport(d);
       try{ XLSX.writeFile(wb,'工作紀錄_'+(d.who||'全部人員')+'_'+d.from+'_'+d.to+'.xlsx'); S.modal=null; renderModal(); toast('已下載 Excel（'+d.logs.length+' 筆回報、'+d.tasks.length+' 件工作）'); }
       catch(e){ renderModal(); toast('瀏覽器不允許下載',true); }
@@ -2059,6 +2135,7 @@ function onBind(e){
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
   if(scope==='ar'){ S.aiRange[key]=val; if(e.type==='change') render(); return; }
+  if(scope==='m'&&S.modal&&S.modal.kind==='leave'&&(key==='from'||key==='to'||key==='who'||key==='name')){ S.modal[key]=val; if(key==='from'&&val&&(!S.modal.to||S.modal.to<val)) S.modal.to=val; S.modal.confirmDel=null; if(e.type==='change') renderModal(); return; }
   if(scope==='m'&&S.modal&&S.modal.kind==='export'&&(key==='from'||key==='to'||key==='who')){ S.modal[key]=val; if(e.type==='change') renderModal(); return; }
   if(scope==='st'){ S.sets[key]=val; return; }
   if(b==='sfwho'){ S.sf.who=val; render(); return; }
@@ -2140,10 +2217,14 @@ const Demo=(()=>{
     else ppl.push(rec);
   };
   const reported={};
+  let leaves=[{id:'L1',name:'晏晨',from:fd(day(0)),to:fd(day(0)),part:'下午',kind:'事假',reason:'家中有事',by:'晏晨',at:fdt(day(-1))},
+    {id:'L2',name:'柏慶',from:fd(day(2)),to:fd(day(3)),part:'全天',kind:'特休',reason:'',by:'正翰',at:fdt(day(-2))}];
+  const lvMap=dd=>{ const m={}; leaves.forEach(l=>{ if(dd<l.from||dd>l.to) return; m[l.name]=!m[l.name]?l.part:(m[l.name]===l.part?l.part:'全天'); }); return m; };
+  const lvList=a=>({leaves:leaves.filter(l=>role(a)==='主管'||l.name===a).slice().sort((x,y)=>x.from<y.from?1:-1),kinds:['特休','事假','病假','公假','補休','婚假','喪假','產假','陪產假','其他'],today:fd(now())});
   const demoSet={hasKey:true,keyMasked:'AIza••••••••x9Qk',model:'gemini-3.5-flash-lite',salutation:'今日工作進度報告如下：',title:'每日工作追蹤',reportTo:'',digestHour:'8',reminderTime:'23:30',url:''};
   const boot=actor=>({myEmail:(ppl.find(p=>p.name===actor)||{}).email||'',me:role(actor)?actor:'',isSuper:!!(ppl.find(p=>p.name===actor)||{}).super,aiEnabled:true,reportedToday:!!reported[actor],people:pub(),projects:[...new Set(tasks.map(t=>t.project).filter(Boolean))],
     tasks:!role(actor)?[]:role(actor)==='主管'?tasks:tasks.filter(t=>t.assignee===actor),
-    config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'},today:fd(now())});
+    config:{salutation:'今日工作進度報告如下：',title:'每日工作追蹤'},today:fd(now()),leaveToday:lvMap(fd(now()))});
   const find=id=>{ const t=tasks.find(x=>x.id===id); if(!t) throw new Error('找不到工作 #'+id); return t; };
   const canTouch=(t,a)=>{ if(t.assignee!==a && role(a)!=='主管') throw new Error('這件工作的承辦人是 '+t.assignee); };
   return {
@@ -2156,15 +2237,20 @@ const Demo=(()=>{
       const logs=log.filter(l=>{ const t=by[l.id]; const d=String(l.time).slice(0,10); return t&&d>=from&&d<=to&&names.indexOf(t.assignee)>=0; })
         .map(l=>{ const t=by[l.id]; return {day:String(l.time).slice(0,10),time:String(l.time).slice(11,16),id:l.id,assignee:t.assignee,actor:l.actor,project:t.project,content:t.content,type:t.type,status:l.status,progress:l.progress,note:l.content||'',source:l.source}; });
       const tl=tasks.filter(t=>names.indexOf(t.assignee)>=0).map(t=>({id:t.id,assignee:t.assignee,type:t.type,project:t.project,content:t.content,status:t.status,progress:t.progress,latest:t.latest,waitingFor:t.waitingFor,assignedAt:t.assignedAt.slice(0,10),startedAt:(t.startedAt||'').slice(0,10),doneAt:(t.doneAt||'').slice(0,10),due:t.due,overdue:isOverdue(t)}));
-      return {from,to,who:mgr?who:a,names,logs,tasks:tl,reports:Object.keys(reported).filter(n=>names.indexOf(n)>=0).map(n=>({day:fd(now()),name:n,time:'17:30',text:'今日工作進度報告如下：',ai:''}))}; },
+      return {from,to,who:mgr?who:a,names,logs,tasks:tl,leaves:leaves.filter(l=>l.from<=to&&l.to>=from&&names.indexOf(l.name)>=0),reports:Object.keys(reported).filter(n=>names.indexOf(n)>=0).map(n=>({day:fd(now()),name:n,time:'17:30',text:'今日工作進度報告如下：',ai:''}))}; },
     api_batchReport(a,rows){ const r={updated:0,errors:[]}; rows.forEach(x=>{ try{ this.api_report(a,x.id,{status:x.status,progress:x.progress,content:x.content,waitingFor:x.waitingFor}); r.updated++; }catch(e){ r.errors.push('第 '+x._row+' 列：'+e.message); } }); r.data=boot(a); return r; },
     api_plaza(a){ const order=['od','review','wait','pause','doing','todo'];
       return {me:a,people:ppl.map(p=>{ const mine=tasks.filter(t=>t.assignee===p.name), open=mine.filter(t=>t.status!=='完成');
         const bal=open.map(t=>isOverdue(t)?'od':t.status==='待確認'?'review':t.status==='等待外部'?'wait':t.status==='暫停'?'pause':t.status==='未開始'?'todo':'doing').sort((x,y)=>order.indexOf(x)-order.indexOf(y));
         return {name:p.name,role:p.role,super:!!p.super,gender:p.gender,avatar:p.avatar,open:open.length,overdue:open.filter(isOverdue).length,review:open.filter(t=>t.status==='待確認').length,
           waiting:open.filter(t=>t.status==='等待外部').length,paused:open.filter(t=>t.status==='暫停').length,todo:open.filter(t=>t.status==='未開始').length,
-          doneWeek:mine.filter(t=>t.status==='完成').length,bal,x:pos[p.name]?pos[p.name].x:null,y:pos[p.name]?pos[p.name].y:null}; })}; },
+          doneWeek:mine.filter(t=>t.status==='完成').length,bal,leave:lvMap(fd(now()))[p.name]||'',x:pos[p.name]?pos[p.name].x:null,y:pos[p.name]?pos[p.name].y:null}; })}; },
     api_plazaMove(a,x,y){ pos[a]={x,y}; return true; },
+    api_leaves(a){ return lvList(a); },
+    api_addLeave(a,v){ const name=role(a)==='主管'?(v.name||a):a; if(!v.from||!v.to) throw new Error('請選擇請假日期'); if(v.from>v.to) throw new Error('結束日期不能早於開始日期');
+      const c=leaves.find(l=>l.name===name&&l.from<=v.to&&l.to>=v.from&&(l.part==='全天'||v.part==='全天'||l.part===v.part)); if(c) throw new Error(name+' 在 '+c.from+' 已經登記過'+c.part+'請假');
+      leaves.push({id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,from:v.from,to:v.to,part:v.part||'全天',kind:v.kind||'事假',reason:v.reason||'',by:a,at:fdt(now())}); const r=lvList(a); r.data=boot(a); return r; },
+    api_deleteLeave(a,id){ const i=leaves.findIndex(l=>l.id===id); if(i<0) throw new Error('找不到這筆請假'); if(role(a)!=='主管'&&leaves[i].name!==a) throw new Error('只能刪除自己的請假'); leaves.splice(i,1); const r=lvList(a); r.data=boot(a); return r; },
     api_setAvatar(a,av,g){ const p=ppl.find(x=>x.name===a); p.avatar=av; p.gender=g; return this.api_plaza(a); },
     api_getSettings(a){ return {...demoSet}; },
     api_saveSettings(a,v){ if(v.clearKey){ demoSet.hasKey=false; demoSet.keyMasked=''; } else if(v.key){ demoSet.hasKey=true; demoSet.keyMasked=v.key.slice(0,4)+'••••••••'+v.key.slice(-4); }
