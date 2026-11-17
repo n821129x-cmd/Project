@@ -369,6 +369,157 @@ table.ppl .acts2{display:flex;gap:6px;justify-content:flex-end}
   .ringbox{flex-direction:column;align-items:flex-start}
   .toast{right:16px;bottom:16px}
 }
+
+/* ── 共用：數字徽章、下拉選單、底部導覽（手機才顯示） ── */
+.nb{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--pink);color:#fff;font-size:11.5px;font-weight:700;font-style:normal;line-height:1}
+.bnav,.fbtn,.sheet-h,.pz-pan{display:none}
+.dd{position:relative;display:inline-block}
+.dd summary{list-style:none}
+.dd summary::-webkit-details-marker{display:none}
+.dd-menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(28,27,46,.16);padding:6px;z-index:30;min-width:200px;display:grid}
+.dd-menu button{border:none;background:none;text-align:left;padding:9px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:14.5px;white-space:nowrap}
+.dd-menu button:hover{background:var(--blue-soft)}
+.more-list{display:grid;gap:2px}
+.more-list button{display:flex;align-items:center;gap:14px;border:none;background:none;padding:11px 8px;border-radius:12px;text-align:left;cursor:pointer;width:100%}
+.more-list button:hover,.more-list button:active{background:var(--gray-soft)}
+.more-list .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--blue-soft);font-size:20px;flex:none}
+.more-list b{display:block;font-size:16px}
+.more-list small{display:block;font-size:12.5px;color:var(--muted)}
+.more-list .danger b{color:#C23A72} .more-list .danger .ic{background:var(--pink-soft)}
+.more-h{display:inline-flex;align-items:center;gap:9px}
+.tt-adv{background:var(--gray-soft);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.pz-scroll{overflow-x:auto;scrollbar-width:none}
+.pz-scroll::-webkit-scrollbar{display:none}
+
+/* ── 電腦：分頁列與左側篩選捲動時固定 ── */
+@media (min-width:761px){
+  .topbar{position:sticky;top:-74px;z-index:20}
+  .side{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow-y:auto;scrollbar-width:thin;padding:0 4px 4px 0}
+}
+
+/* ── 手機 ── */
+@media (max-width:760px){
+  .m-hide{display:none!important}
+  .demo{font-size:12px;padding:4px 10px}
+  .rainbow{height:4px}
+  .topbar-in{padding:10px 14px}
+  .tabs{display:none}
+  .brand{font-size:16.5px;gap:9px}
+  .who-row .lo{display:none}
+  .who{padding:3px 5px 3px 3px}
+  .wrap{padding:12px 12px calc(86px + env(safe-area-inset-bottom));gap:12px}
+  .panel{padding:16px 14px;border-radius:12px}
+  .panel+.panel{margin-top:12px}
+  .panel h2{font-size:19px;line-height:36px}
+
+  /* 底部導覽 */
+  .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);padding:5px 6px calc(5px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px rgba(28,27,46,.07)}
+  .bn{flex:1;min-width:0;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;padding:5px 2px;font-size:11.5px;font-weight:600;color:var(--muted);border-radius:12px;position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bn svg{width:23px;height:23px}
+  .bn.on{color:var(--blue);background:var(--blue-soft)}
+  .bn .nb{position:absolute;top:3px;left:calc(50% + 5px)}
+
+  /* 搜尋＋篩選按鈕；篩選內容改成底部彈出 */
+  .side-top{display:flex;gap:8px}
+  .side-top .search{flex:1;min-width:0;border-radius:12px;padding:11px 14px}
+  .fbtn{display:inline-flex;border-radius:12px;white-space:nowrap;padding:9px 13px;position:relative}
+  .fbtn.on{border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+  .side-who h4{display:none}
+  .side-who .pills{flex-wrap:nowrap;overflow-x:auto;margin:10px -12px 0;padding:0 12px 2px;scrollbar-width:none}
+  .side-who .pills::-webkit-scrollbar{display:none}
+  .side-who .pill{flex:none}
+  .side-f{display:none}
+  .side-f.open{display:flex;position:fixed;inset:0;z-index:55;background:rgba(28,27,46,.42);align-items:flex-end}
+  .side-f-in{background:#fff;width:100%;max-height:82vh;overflow:auto;border-radius:20px 20px 0 0;padding:0 16px calc(22px + env(safe-area-inset-bottom))}
+  .sheet-h{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;padding:16px 0 8px;font-size:18px;z-index:1}
+  .sheet-h span{display:flex;gap:14px;align-items:center}
+  .side h4{margin:14px 0 9px}
+  .pill{padding:8px 14px;font-size:15px}
+  .who-pill{padding:5px 13px 5px 5px}
+  .who-pill .av{width:26px;height:26px;font-size:12px}
+
+  /* 標題與主要按鈕 */
+  .panel-head{display:block;position:relative}
+  .head-acts{margin-top:10px;gap:8px;align-items:center}
+  .head-acts .vt{position:absolute;right:0;top:0}
+  .head-acts .btn.hb,.pz-panel .head-acts .btn{flex:1;justify-content:center;min-height:46px;padding:9px 8px;white-space:nowrap;border-radius:10px}
+  .sent-chip,.head-acts .lv-chip{flex:none}
+
+  /* 統計磚：橫向滑動 */
+  .tiles{display:flex;overflow-x:auto;gap:8px;margin:12px -14px 2px;padding:2px 14px 6px;scrollbar-width:none;scroll-snap-type:x proximity}
+  .tiles::-webkit-scrollbar{display:none}
+  .tile{flex:0 0 30%;min-width:102px;padding:9px 12px;border-radius:10px;scroll-snap-align:start}
+  .tile .v{font-size:23px}
+  button.tile .hint2{display:none}
+  .fnote{font-size:13.5px;padding:9px 12px;gap:8px}
+
+  /* 工作卡片 */
+  .sec-title{margin:22px 0 10px;flex-wrap:wrap;font-size:16px}
+  .grid{grid-template-columns:minmax(0,1fr);gap:12px}
+  .card{border-radius:12px}
+  .card:hover{transform:none}
+  .viz{padding:9px 14px 8px}
+  .big{font-size:21px}
+  .bar{margin-top:8px;height:7px}
+  .tbar{margin-top:7px}
+  .viz-sub{margin-top:5px}
+  .body{padding:9px 14px 2px}
+  .content{font-size:15.5px}
+  .meta{margin-top:5px}
+  .acts{gap:8px;padding:9px 14px 12px}
+  .acts .btn,.tl-acts .btn{flex:1;justify-content:center;min-height:42px;font-size:14.5px;border-radius:10px;white-space:nowrap}
+  .wait-note{flex:1;text-align:center;padding:9px 10px}
+  .tl{border-radius:12px}
+  .tl-r{padding:12px}
+  .tl-due{flex-direction:row;gap:6px;align-items:baseline}
+
+  /* 視窗改成底部彈出 */
+  .overlay{padding:0;align-items:flex-end}
+  .dialog,.dialog.wide{max-width:none;border-radius:20px 20px 0 0;max-height:92vh}
+  .d-head{position:sticky;top:0;background:#fff;z-index:2;padding:16px 16px 10px}
+  .d-body{padding:6px 16px 16px}
+  .d-foot{position:sticky;bottom:0;background:#fff;z-index:2;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .d-foot .btn{flex:1;justify-content:center;min-height:46px;border-radius:10px;white-space:nowrap}
+  .d-foot .check{flex-basis:100%;margin:0 0 2px;order:-1}
+  .d-foot .btn.left{flex:none;margin-right:0;padding:9px 18px}
+  .form-foot .btn.primary{flex:1;justify-content:center}
+  .x{font-size:28px;padding:2px 10px}
+  .inp,.search input{font-size:16px}
+  .btn{border-radius:8px}
+  .form-foot .btn{min-height:44px}
+  .report-text{min-height:200px}
+  .kv{grid-template-columns:84px 1fr}
+  .h-item{grid-template-columns:84px 1fr}
+  .lv-form{grid-template-columns:1fr 1fr}
+  .lv-form .field:first-child:nth-last-child(3){grid-column:1/-1}
+  .lv-row{flex-wrap:wrap;gap:6px 10px}
+  .lv-row .d{min-width:0}
+  .lv-row .r{flex-basis:100%;order:5;white-space:normal}
+  .range-row .field{flex:1;min-width:130px}
+  .as-tools{float:none;display:flex;margin:4px 0 6px}
+  .toast{left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));text-align:center;max-width:none}
+
+  /* 人員管理：表格改成卡片 */
+  .tbl-wrap{border:none;overflow:visible}
+  table.ppl{min-width:0;display:block}
+  table.ppl thead{display:none}
+  table.ppl tbody{display:grid;gap:10px}
+  table.ppl tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  table.ppl td{border:none;padding:0;font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+  table.ppl td[data-l]::before{content:attr(data-l) '　';color:var(--faint);font-size:12px}
+  table.ppl td.nm{font-size:16.5px}
+  table.ppl td.rl{text-align:right;align-self:center}
+  table.ppl td.w2{grid-column:1/-1}
+  table.ppl .acts2{justify-content:stretch;margin-top:6px}
+  table.ppl .acts2 .btn{flex:1;justify-content:center;min-height:40px}
+
+  /* 花園廣場：放大、可左右滑 */
+  .pz-pan{display:inline}
+  .pz-wrap canvas{width:760px;max-width:none;touch-action:pan-x pan-y}
+  .pz-help{font-size:13.5px}
+  .login-in{padding:26px 22px 24px}
+  .set-sec{padding:14px}
+}
 </style>
 </head>
 <body>
@@ -423,7 +574,10 @@ const ICON = {
   flower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="2.5"/><path d="M12 6.5a3 3 0 1 1 0-0.1M14.4 8.2a3 3 0 1 1 .1.1M13.5 11.3a3 3 0 1 1 .1-.1M10.5 11.3a3 3 0 1 1-.1-.1M9.6 8.2a3 3 0 1 1-.1.1"/><path d="M12 12v9M12 17c-2-2-4-2-5-1M12 16c2-2 4-2 5-1"/></svg>',
   rows:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.3"/><circle cx="4" cy="12" r="1.3"/><circle cx="4" cy="18" r="1.3"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M18 4l2 2-2 2"/></svg>',
-  src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
+  src:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="19" cy="12" r="2.1"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  filter:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
 };
 
 /* ═════════ 工具 ═════════ */
@@ -521,6 +675,41 @@ function buildReportText(list){
   return lines.join('\n');
 }
 
+/* 全員代辦文字清單（主管）：依每個人在系統上回報的最新進度產出，可貼到 LINE */
+const TT_HEAD='今日代辦事項說明如下，謝謝。';
+function teamLine(t,o){
+  const trim=x=>String(x).replace(/\s*\n+\s*/g,'，').replace(/[。．.\s]+$/,'');
+  let s=trim((t.project?t.project+'，':'')+t.content);
+  if(o.latest&&t.latest) s+='（'+trim(t.latest)+'）';
+  if(o.latest&&hasProg(t)) s+='('+t.progress+'%)';
+  if(o.status){
+    const tags=[];
+    if(t.status==='完成') tags.push('已完成');
+    else if(t.status==='待確認') tags.push('已完成，待確認');
+    else if(t.status==='等待外部') tags.push('等待'+(t.waitingFor?'：'+t.waitingFor:'外部'));
+    else if(t.status==='暫停') tags.push('暫停');
+    if(isOverdue(t)) tags.push('逾期');
+    if(tags.length) s+='（'+tags.join('，')+'）';
+  }
+  return s;
+}
+function teamTasks(name,m){ return orderTasks(S.tasks.filter(t=>t.assignee===name&&(t.status!=='完成'||(m.done&&t.doneAt&&t.doneAt.slice(0,10)===S.today)))); }
+function buildTeamText(m){
+  const lv=S.leaveToday||{}, out=[], head=String(m.head||'').trim();
+  let np=0, nt=0;
+  if(head) out.push(head);
+  S.people.forEach(p=>{
+    if(m.off[p.name]) return;
+    const list=teamTasks(p.name,m); if(!list.length) return;
+    np++; nt+=list.length;
+    if(out.length) out.push('');
+    out.push(p.name+(lv[p.name]?'（今日請假'+(lv[p.name]==='全天'?'':'・'+lv[p.name])+'）':'')+'預計事項如下：');
+    list.forEach((t,i)=>{ out.push((i+1)+'. '+teamLine(t,m)); if(m.link&&t.link) out.push(t.link); });
+  });
+  m.np=np; m.nt=nt;
+  return out.join('\n');
+}
+
 /* ═════════ 畫面 ═════════ */
 function render(){
   if(!S.me){ $('#app').innerHTML = loginHtml(); $('#modal').innerHTML=''; const f=$('#lgAcc'); if(f&&!S.login.account) f.focus(); return; }
@@ -569,18 +758,31 @@ document.addEventListener('submit',e=>{ if(e.target.dataset.form==='login'){ e.p
 function topHtml(withTabs){
   const p=me(); const mgr=p&&p.role==='主管';
   const tab=(v,ic,cls,label,extra)=>`<button class="tab ${S.tab===v?'on':''} ${v==='assign'?'accent':''}" data-act="tab" data-v="${v}"><span class="ic ${cls}">${ic}</span>${label}${extra||''}</button>`;
+  const nRev=mgr?S.tasks.filter(t=>t.status==='待確認').length:0;
   const tabs = withTabs ? `<nav class="tabs">
       ${tab('mine',ICON.grid,'','我的工作')}${tab('plaza',ICON.flower,'k','花園廣場')}
-      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理')+(S.isSuper?tab('settings',ICON.gear,'','系統設定'):''):''}
+      ${mgr?tab('assign',ICON.table,'p','指派工作',' <span class="badge">主管</span>')+tab('team',ICON.team,'k','團隊總覽',nRev?` <span class="nb" title="${nRev} 件待確認">${nRev}</span>`:'')+tab('stats',ICON.chart,'t','統計圖表')+tab('people',ICON.user,'p','人員管理')+(S.isSuper?tab('settings',ICON.gear,'','系統設定'):''):''}
     </nav>` : '<div style="height:18px"></div>';
-  return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。部署到 Apps Script 後才會寫入試算表與寄信。</div>':''}
+  return `${IS_DEMO?'<div class="demo">預覽模式：使用示範資料，重新整理就會還原。<span class="m-hide">部署到 Apps Script 後才會寫入試算表與寄信。</span></div>':''}
   <div class="rainbow"></div>
   <header class="topbar"><div class="topbar-in">
     <div class="brand-row">
       <div class="brand"><span class="mark">${ICON.spark}</span>${esc(S.config.title)}</div>
-      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="myProfile" title="我的資料：修改 Email、LINE 名稱、密碼">👤<span class="lbl"> 我的資料</span></button><button class="out" data-act="logout">登出</button></div>`:''}
+      ${p?`<div class="who-row"><span class="who">${avatar(p.name)}<span>${esc(p.name)}</span><span class="role ${mgr?'mgr':''}">${p.role}</span></span><button class="out" data-act="myProfile" title="我的資料：修改 Email、LINE 名稱、密碼">👤<span class="lbl"> 我的資料</span></button><button class="out lo" data-act="logout">登出</button></div>`:''}
     </div>${tabs}
-  </div></header>`;
+  </div></header>${withTabs?bnavHtml():''}`;
+}
+/* 手機：底部導覽列 */
+function bnavHtml(){
+  const p=me(); if(!p) return '';
+  const mgr=p.role==='主管';
+  const it=(v,ic,label,extra)=>`<button class="bn ${S.tab===v?'on':''}" data-act="tab" data-v="${v}">${ic}<span>${label}</span>${extra||''}</button>`;
+  const nRev=mgr?S.tasks.filter(t=>t.status==='待確認').length:0;
+  const moreOn=mgr&&['plaza','people','settings'].indexOf(S.tab)>=0;
+  return `<nav class="bnav" aria-label="主要功能">${it('mine',ICON.grid,'我的工作')}${mgr
+    ?it('assign',ICON.table,'指派')+it('team',ICON.team,'團隊',nRev?`<i class="nb">${nRev}</i>`:'')+it('stats',ICON.chart,'圖表')
+    :it('plaza',ICON.flower,'花園廣場')+`<button class="bn" data-act="openLeave">${ICON.cal}<span>請假</span></button>`}
+    <button class="bn ${moreOn?'on':''}" data-act="openMore">${ICON.more}<span>更多</span></button></nav>`;
 }
 
 function baseList(){
@@ -634,12 +836,16 @@ function sideHtml(){
   const whoHtml=`<h4>${ICON.team}人員<span class="muted" style="font-weight:400;font-size:12.5px;margin-left:4px">${S.people.length} 人</span></h4><div class="pills">
     <button class="pill ${S.f.who==='全部'?'on':''}" data-act="f" data-k="who" data-v="全部">全部<span class="n">${wl.length}</span></button>
     ${ppl.map(p=>`<button class="pill who-pill ${S.f.who===p.name?'on':''} ${wc[p.name]?'':'zero'}" data-act="f" data-k="who" data-v="${esc(p.name)}"><span class="av" style="background:${personColor(p.name)}">${esc(p.name.slice(0,1))}</span>${esc(p.name)}${p.role==='主管'?' 👑':''}${S.leaveToday&&S.leaveToday[p.name]?' 🏖':''}<span class="n">${wc[p.name]||0}</span></button>`).join('')}</div>`;
-  return `<div class="search">${ICON.search}<input data-bind="q" value="${esc(S.f.q)}" placeholder="搜尋工作、專案或人名"></div>
-    ${S.tab==='team'?whoHtml:''}
-    <h4>${ICON.type}類型</h4>${pills('type',['全部','專案執行','臨時代辦'],null,{'專案執行':'#2D5BE3','臨時代辦':TEMP_COLOR})}
-    <h4>${ICON.status}狀態</h4>${pills('status',STATUS_FILTERS,sc,STATUS_DOT)}
-    <h4>${ICON.src}來源</h4>${pills('src',['全部','主管交辦','自行新增'],null,{'主管交辦':'#8A55D6','自行新增':'#E0791F'})}
-`;
+  const nf=(S.f.type!=='全部')+(S.f.status!=='未完成')+(S.f.src!=='全部');
+  return `<div class="side-top"><div class="search">${ICON.search}<input data-bind="q" value="${esc(S.f.q)}" placeholder="搜尋工作、專案或人名"></div>
+      <button class="btn fbtn ${nf?'on':''}" data-act="fOpen">${ICON.filter}篩選${nf?`<i class="nb">${nf}</i>`:''}</button></div>
+    ${S.tab==='team'?`<div class="side-who">${whoHtml}</div>`:''}
+    <div class="side-f ${S.fOpen?'open':''}" data-act="fClose"><div class="side-f-in" data-act="noop">
+      <div class="sheet-h"><b>篩選</b><span><button class="lnk" data-act="clearF">清除篩選</button><button class="btn sm primary" data-act="fDone">完成</button></span></div>
+      <h4>${ICON.type}類型</h4>${pills('type',['全部','專案執行','臨時代辦'],null,{'專案執行':'#2D5BE3','臨時代辦':TEMP_COLOR})}
+      <h4>${ICON.status}狀態</h4>${pills('status',STATUS_FILTERS,sc,STATUS_DOT)}
+      <h4>${ICON.src}來源</h4>${pills('src',['全部','主管交辦','自行新增'],null,{'主管交辦':'#8A55D6','自行新增':'#E0791F'})}
+    </div></div>`;
 }
 
 function tilesHtml(list){
@@ -660,12 +866,16 @@ function lvChip(name,label){
 }
 function leaveNote(){
   const ks=Object.keys(S.leaveToday||{}); if(!ks.length) return '';
-  return `<div class="note" style="margin:0 0 12px;background:#FFF8EC;border-color:#F5D9A8">🏖 今天請假：${ks.map(n=>`<b>${esc(n)}</b>${S.leaveToday[n]==='全天'?'':'（'+esc(S.leaveToday[n])+'）'}`).join('、')}　<span class="muted" style="font-size:12.5px">全天請假的人當天不會被提醒寄日報</span></div>`;
+  return `<div class="note" style="margin:0 0 12px;background:#FFF8EC;border-color:#F5D9A8">🏖 今天請假：${ks.map(n=>`<b>${esc(n)}</b>${S.leaveToday[n]==='全天'?'':'（'+esc(S.leaveToday[n])+'）'}`).join('、')}　<span class="muted m-hide" style="font-size:12.5px">全天請假的人當天不會被提醒寄日報</span></div>`;
 }
 function mainHtml(){
   const list=visible(); const mine=S.tab==='mine';
   const head=`<div class="panel-head"><h2>${mine?'我的工作':'團隊總覽'}</h2>
-    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}${lvChip(S.me,'今天請假')}<button class="btn" data-act="openLeave">🏖 請假</button><button class="btn" data-act="openExport">📤 匯出 Excel</button><button class="btn" data-act="openBatch">📥 批次回報</button><button class="btn purple" data-act="addTask">＋ 新增工作</button><button class="btn primary" data-act="genReport">今日回報／寄日報</button>`:`<button class="btn" data-act="openLeave">🏖 請假管理</button><button class="btn" data-act="openExport">📤 匯出 Excel</button>`}</div></div>`;
+    <div class="head-acts">${viewToggle()}${mine?`${S.reportedToday?'<span class="sent-chip">✓ 今日日報已寄出</span>':''}${lvChip(S.me,'今天請假')}
+      <button class="btn m-hide" data-act="openLeave">🏖 請假</button>
+      <details class="dd m-hide"><summary class="btn">更多 ▾</summary><div class="dd-menu"><button data-act="openExport">📤 匯出 Excel</button><button data-act="openBatch">📥 批次回報今日進度</button></div></details>
+      <button class="btn purple hb" data-act="addTask">＋ 新增工作</button><button class="btn primary hb" data-act="genReport">今日回報／寄日報</button>`
+      :`<button class="btn primary hb" data-act="openTeamText">📋 代辦清單</button><button class="btn hb" data-act="openLeave"><span>🏖 請假<span class="m-hide">管理</span></span></button><button class="btn hb" data-act="openExport"><span>📤 匯出<span class="m-hide"> Excel</span></span></button>`}</div></div>`;
   const tiles=(mine?'':leaveNote())+tilesHtml(baseList())+filterNote(list.length);
   if(!list.length) return `<section class="panel">${head}${tiles}<div class="empty">沒有符合條件的工作</div></section>`;
   const groups=[];
@@ -842,14 +1052,14 @@ function peoplePage(){
   if(!S.admin){ loadAdmin(); return `<section class="panel"><div class="loading">載入人員中…</div></section>`; }
   const rows=S.admin.map(p=>`<tr>
     <td class="nm">${avatar(p.name)}${esc(p.name)}</td>
-    <td><span class="role ${p.role==='主管'?'mgr':''}">${p.super?'管理者':p.role}</span></td>
-    <td>${p.role==='主管'?'<span class="muted">—</span>':(p.supervisor?esc(p.supervisor):'<span class="muted">未指定（通知所有主管）</span>')}</td>
-    <td>${p.gender||'<span class="muted">—</span>'}</td>
-    <td>${p.email?esc(p.email):'<span class="muted">未填（收不到通知信）</span>'}</td>
-    <td>${p.line?esc(p.line):'<span class="muted">—</span>'}</td>
-    <td>${p.account?esc(p.account):'<span class="muted">未設定（無法登入）</span>'}</td>
-    <td>${p.hasPassword?'已設定':'<span class="muted">未設定</span>'}</td>
-    <td><div class="acts2">${S.isSuper||p.role!=='主管'||p.name===S.me?`<button class="btn sm" data-act="editPerson" data-v="${esc(p.name)}">編輯</button>`:''}${p.name!==S.me&&!p.super&&(S.isSuper||p.role!=='主管')?`<button class="btn sm pink" data-act="askDelPerson" data-v="${esc(p.name)}">刪除</button>`:''}</div></td></tr>`).join('');
+    <td class="rl"><span class="role ${p.role==='主管'?'mgr':''}">${p.super?'管理者':p.role}</span></td>
+    <td data-l="直屬主管">${p.role==='主管'?'<span class="muted">—</span>':(p.supervisor?esc(p.supervisor):'<span class="muted">未指定（通知所有主管）</span>')}</td>
+    <td data-l="性別">${p.gender||'<span class="muted">—</span>'}</td>
+    <td data-l="Email" class="w2">${p.email?esc(p.email):'<span class="muted">未填（收不到通知信）</span>'}</td>
+    <td data-l="LINE">${p.line?esc(p.line):'<span class="muted">—</span>'}</td>
+    <td data-l="帳號">${p.account?esc(p.account):'<span class="muted">未設定（無法登入）</span>'}</td>
+    <td data-l="密碼">${p.hasPassword?'已設定':'<span class="muted">未設定</span>'}</td>
+    <td class="w2"><div class="acts2">${S.isSuper||p.role!=='主管'||p.name===S.me?`<button class="btn sm" data-act="editPerson" data-v="${esc(p.name)}">編輯</button>`:''}${p.name!==S.me&&!p.super&&(S.isSuper||p.role!=='主管')?`<button class="btn sm pink" data-act="askDelPerson" data-v="${esc(p.name)}">刪除</button>`:''}</div></td></tr>`).join('');
   return `<section class="panel">
     <div class="panel-head"><h2>人員管理</h2><div class="head-acts"><button class="btn purple" data-act="newPerson">＋ 新增人員</button></div></div>
     ${S.isSuper?'<div class="note" style="margin-top:14px">您是管理者：可以設定每個人的<b>角色</b>與<b>直屬主管</b>。員工的日報、提報完成通知、早上的團隊摘要都會寄給他的直屬主管；沒指定的員工會通知所有主管。</div>'
@@ -1033,14 +1243,14 @@ function plazaHtml(){
   return `<section class="panel pz-panel">
     <div class="panel-head"><h2>🌷 花園廣場</h2>
       <div class="head-acts"><button class="btn purple" data-act="pzAvatar">👗 換造型</button><button class="btn" data-act="pzFind">📍 找到我</button></div></div>
-    <p class="pz-help">用 <b>方向鍵／WASD</b> 或 <b>點地面</b> 讓自己的人走過去；點別人可以看他的工作件數。每顆氣球代表一件未完成的工作。</p>
+    <p class="pz-help"><span class="m-hide">用 <b>方向鍵／WASD</b> 或 </span><b>點地面</b> 讓自己的人走過去<span class="pz-pan">，左右滑動可以看整個廣場</span>；點別人可以看他的工作件數。每顆氣球代表一件未完成的工作。</p>
     <div class="pz-legend">
       <span><i style="background:${PZ_STATUS_COLOR.od}"></i>逾期</span><span><i style="background:${PZ_STATUS_COLOR.review}"></i>待確認</span>
       <span><i style="background:${PZ_STATUS_COLOR.wait}"></i>等待外部</span><span><i style="background:${PZ_STATUS_COLOR.pause}"></i>暫停</span>
       <span><i style="background:${PZ_STATUS_COLOR.doing}"></i>進行中</span><span><i style="background:${PZ_STATUS_COLOR.todo}"></i>未開始</span>
       <span class="pz-tag">👑 主管</span><span class="pz-tag">🦖 管理者</span>
     </div>
-    <div class="pz-wrap" id="pzWrap"><canvas id="pz" tabindex="0" aria-label="花園廣場，每個人物代表一位同事，氣球是未完成工作件數"></canvas>
+    <div class="pz-wrap" id="pzWrap"><div class="pz-scroll" id="pzScroll"><canvas id="pz" tabindex="0" aria-label="花園廣場，每個人物代表一位同事，氣球是未完成工作件數"></canvas></div>
       <div class="pz-card" id="pzCard" hidden></div>
       ${!PZ.data?'<div class="pz-loading">廣場準備中…</div>':''}
     </div>
@@ -1056,7 +1266,11 @@ function mountPlaza(){
   if(!PZ.data && !PZ.loading) pzLoad();
   if(!PZ.poll) PZ.poll=setInterval(()=>{ if(PZ.canvas&&PZ.canvas.isConnected&&!document.hidden) pzLoad(); },20000);
   if(!PZ.raf){ PZ.last=performance.now(); PZ.raf=requestAnimationFrame(pzFrame); }
-  cv.onpointerdown=pzPointer;
+  PZ.scroll=$('#pzScroll'); PZ.centered=false;
+  /* 點一下才算（手機左右滑動看廣場時不會誤觸走路） */
+  cv.onpointerdown=e=>{ PZ.pd={x:e.clientX,y:e.clientY}; };
+  cv.onpointerup=e=>{ const d=PZ.pd; PZ.pd=null; if(!d||Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>12) return; pzPointer(e); };
+  cv.onpointercancel=()=>{ PZ.pd=null; };
   if(S.modal&&S.modal.kind==='avatar') pzPaintGrid();
 }
 function unmountPlaza(){
@@ -1145,7 +1359,15 @@ function pzFrame(now){
   if(!PZ.canvas||!PZ.canvas.isConnected){ PZ.raf=0; return; }
   const dt=Math.min(0.05,(now-PZ.last)/1000); PZ.last=now;
   pzUpdate(dt); pzDraw();
+  if(!PZ.centered&&PZ.chars[S.me]){ pzFollow(true); PZ.centered=true; } else pzFollow(false);
   PZ.raf=requestAnimationFrame(pzFrame);
+}
+/* 手機：廣場比螢幕寬，自己走路時畫面跟著捲 */
+function pzFollow(force){
+  const sc=PZ.scroll; if(!sc||sc.scrollWidth<=sc.clientWidth+2) return;
+  const c=PZ.chars[S.me]; if(!c||(!force&&!c.walking)) return;
+  const k=PZ.canvas.clientWidth/PZ.W, want=Math.max(0,Math.min(sc.scrollWidth-sc.clientWidth,c.x*k-sc.clientWidth/2));
+  sc.scrollLeft=force?want:sc.scrollLeft+(want-sc.scrollLeft)*0.12;
 }
 
 /* 輸入 */
@@ -1180,8 +1402,9 @@ function pzShowCard(name,onlyMove){
       ${p.name===S.me?'<div class="pz-me">這是你！<button class="btn sm purple" data-act="pzAvatar">換造型</button></div>':''}`;
     el.hidden=false;
   }
-  const x=c.x*k, y=(c.y-90)*k, w=el.offsetWidth||230;
-  el.style.left=Math.max(6,Math.min(r.width-w-6,x-w/2))+'px';
+  const sc=PZ.scroll, vw=sc?sc.clientWidth:r.width;
+  const x=c.x*k-(sc?sc.scrollLeft:0), y=(c.y-90)*k, w=el.offsetWidth||230;
+  el.style.left=Math.max(6,Math.min(vw-w-6,x-w/2))+'px';
   el.style.top=Math.max(6,y-el.offsetHeight)+'px';
 }
 
@@ -1583,6 +1806,12 @@ function quickRange(k){
 }
 function mdw(day){ const d=new Date(day+'T00:00'); return (d.getMonth()+1)+'/'+d.getDate()+'（'+'日一二三四五六'[d.getDay()]+'）'; }
 function addDays(day,n){ const d=new Date(day+'T00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function ttRefresh(keepFocus){
+  const m=S.modal; if(!m||m.kind!=='teamText') return;
+  m.text=buildTeamText(m);
+  if(keepFocus){ const ta=$('#ttText'); if(ta) ta.value=m.text; const c=$('#ttCnt'); if(c) c.textContent=m.np+' 人、'+m.nt+' 件｜可直接修改'; }
+  else renderModal();
+}
 function copyText(txt,msg){
   const ok=()=>toast(msg||'已複製');
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(()=>fallbackCopy(txt,ok));
@@ -1751,6 +1980,29 @@ function renderModal(){
         <div class="form-foot" style="margin-top:12px"><span></span><button class="btn purple" data-act="changePw">更新密碼</button></div>
       </div>`,`<button class="btn" data-act="closeModal">關閉</button>`);
   }
+  else if(m.kind==='more'){
+    const p=me(), mgr=isMgr(S.me);
+    const row=(go,ic,label,sub,v,cls)=>`<button class="${cls||''}" data-act="moreGo" data-go="${go}" ${v?`data-v="${v}"`:''}><span class="ic">${ic}</span><span><b>${label}</b>${sub?`<small>${sub}</small>`:''}</span></button>`;
+    html=shell(`<span class="more-h">${avatar(p.name)}${esc(p.name)}<span class="role ${mgr?'mgr':''}">${S.isSuper?'管理者':p.role}</span></span>`,'',`<div class="more-list">
+      ${mgr?row('tab','🌷','花園廣場','看看大家的氣球','plaza')+row('tab','👥','人員管理','新增、編輯同仁資料','people')+(S.isSuper?row('tab','⚙️','系統設定','AI、提醒時間','settings'):'')+row('openLeave','🏖','請假','登記自己或同仁的請假'):''}
+      ${row('openExport','📤','匯出 Excel','依日期區間下載工作紀錄')}
+      ${row('openBatch','📥','批次回報','用 Excel 一次更新今日進度')}
+      ${row('myProfile','👤','我的資料','Email、LINE 名稱、密碼')}
+      ${row('logout','🚪','登出','','', 'danger')}
+    </div>`,'');
+  }
+  else if(m.kind==='teamText'){
+    const opt=(k,label)=>`<button class="pill ${m[k]?'on':''}" data-act="ttOpt" data-v="${k}">${m[k]?'✓ ':''}${label}</button>`;
+    const ppl=S.people.map(p=>({p,n:teamTasks(p.name,m).length}));
+    html=shell('代辦文字清單','依每位同仁在系統上回報的最新進度產出，可直接貼到 LINE 群組',`
+      <div class="field"><label>要列出的同仁<span class="opt">點一下加入／移除</span><span class="as-tools"><button class="lnk" data-act="ttAll" data-v="1">全選</button><button class="lnk" data-act="ttAll" data-v="">只選員工</button></span></label>
+        <div class="pills">${ppl.map(x=>`<button class="pill who-pill ${!m.off[x.p.name]&&x.n?'on':''} ${x.n?'':'zero'}" data-act="ttWho" data-v="${esc(x.p.name)}" ${x.n?'':'disabled title="沒有未完成的工作"'}><span class="av" style="background:${personColor(x.p.name)}">${esc(x.p.name.slice(0,1))}</span>${esc(x.p.name)}${x.p.role==='主管'?' 👑':''}<span class="n">${x.n}</span></button>`).join('')}</div></div>
+      <div class="rep-sec" style="margin-top:16px">文字清單<span class="opt" id="ttCnt" style="font-weight:400;color:var(--faint);font-size:12.5px">${m.np} 人、${m.nt} 件｜可直接修改</span><button class="btn sm" data-act="ttAdv" style="margin-left:auto">⚙ 調整內容 ${m.adv?'▴':'▾'}</button></div>
+      ${m.adv?`<div class="tt-adv"><div class="field"><label>要包含</label><div class="pills">${opt('latest','最新回報與進度 %')}${opt('status','狀態註記（等待、暫停、逾期）')}${opt('link','連結')}${opt('done','今天已完成的工作')}</div></div>
+      <div class="field" style="margin-top:12px"><label>開頭文字</label><input class="inp" data-bind="m.head" value="${esc(m.head)}" placeholder="${esc(TT_HEAD)}"></div></div>`:''}
+      <textarea class="inp report-text" id="ttText" data-bind="m.text" style="min-height:260px">${esc(m.text)}</textarea>`,
+      `<button class="btn" data-act="closeModal">關閉</button>${navigator.share?'<button class="btn" data-act="ttShare">📤 分享</button>':''}<button class="btn primary" data-act="ttCopy">複製文字</button>`,true);
+  }
   else if(m.kind==='leave'){
     const mgr=isMgr(S.me), half=m.part!=='全天';
     const kinds=m.kinds||['特休','事假','病假','公假','補休','其他'];
@@ -1883,7 +2135,7 @@ function renderModal(){
 /* ═════════ 動作 ═════════ */
 const A = {
   noop(){},
-  tab(el){ S.tab=el.dataset.v; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; if(S.tab==='settings') S.sets=null; render(); window.scrollTo(0,0); },
+  tab(el){ S.tab=el.dataset.v; S.fOpen=false; if(S.tab!=='team') S.f.who='全部'; if(S.tab==='people') S.admin=null; if(S.tab==='settings') S.sets=null; render(); window.scrollTo(0,0); },
   f(el){ S.f[el.dataset.k]=el.dataset.v; render(); },
   toggleNotify(el,e){
     const on=el.checked, id=el.dataset.id;
@@ -1897,7 +2149,31 @@ const A = {
     api('api_setAvatar',S.token,m.avatar,m.gender).then(d=>{ S.modal=null; renderModal(); pzApply(d); toast('造型已更新，大家都看得到囉！'); }).catch(onErr);
   },
   pzClose(){ PZ.sel=null; pzShowCard(null); },
-  pzFind(){ const c=PZ.chars[S.me]; if(!c) return; PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  pzFind(){ const c=PZ.chars[S.me]; if(!c) return; pzFollow(true); PZ.sel=S.me; pzShowCard(S.me); toast('閃亮亮的藍色圈圈就是你'); },
+  openMore(){ S.modal={kind:'more',color:'#8A55D6'}; renderModal(); },
+  moreGo(el,e){ S.modal=null; renderModal(); const fn=A[el.dataset.go]; if(fn) fn(el,e); },
+  fOpen(){ S.fOpen=true; render(); },
+  fDone(){ S.fOpen=false; render(); },
+  fClose(el,e){ if(e.target!==el) return; S.fOpen=false; render(); },
+  openTeamText(){
+    const off={}; S.people.forEach(p=>{ if(S.f.who!=='全部'?p.name!==S.f.who:p.role==='主管') off[p.name]=true; });
+    const h=load('dtt.tthead');
+    const m={kind:'teamText',color:'#2D5BE3',off,latest:true,status:true,link:true,done:false,adv:window.innerWidth>760,head:h==null?TT_HEAD:h};
+    m.text=buildTeamText(m);
+    if(!m.nt){ S.people.forEach(p=>{ delete off[p.name]; }); m.text=buildTeamText(m); }
+    if(!m.nt) return toast('目前沒有未完成的工作',true);
+    S.modal=m; renderModal();
+  },
+  ttWho(el){ const m=S.modal, n=el.dataset.v; if(m.off[n]) delete m.off[n]; else m.off[n]=true; ttRefresh(); },
+  ttAll(el){ const m=S.modal; m.off={}; if(!el.dataset.v) S.people.forEach(p=>{ if(p.role==='主管') m.off[p.name]=true; }); ttRefresh(); },
+  ttAdv(){ S.modal.adv=!S.modal.adv; renderModal(); },
+  ttOpt(el){ const m=S.modal; m[el.dataset.v]=!m[el.dataset.v]; ttRefresh(); },
+  ttCopy(){ const t=$('#ttText').value; if(!t.trim()) return toast('沒有內容可以複製',true); copyText(t,'已複製代辦清單，可以貼到 LINE 了'); },
+  ttShare(){
+    const t=$('#ttText').value; if(!t.trim()) return toast('沒有內容可以分享',true);
+    try{ navigator.share({text:t}).catch(err=>{ if(!err||err.name!=='AbortError') copyText(t,'無法開啟分享，已改為複製文字'); }); }
+    catch(err){ copyText(t,'無法開啟分享，已改為複製文字'); }
+  },
   openLeave(){
     S.modal={kind:'leave',color:'#E0791F',list:null,name:S.me,from:S.today,to:S.today,part:'全天',lk:'特休',reason:'',who:'',confirmDel:null}; renderModal();
     api('api_leaves',S.token).then(r=>{ if(S.modal&&S.modal.kind==='leave'){ S.modal.list=r.leaves; S.modal.kinds=r.kinds; renderModal(); } }).catch(onErr);
@@ -2124,8 +2400,14 @@ const A = {
   }
 };
 document.addEventListener('click',e=>{
+  document.querySelectorAll('details.dd[open]').forEach(d=>{ if(!d.contains(e.target)||e.target.closest('.dd-menu')) d.open=false; });
   const el=e.target.closest('[data-act]'); if(!el) return;
   const fn=A[el.dataset.act]; if(fn) fn(el,e);
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(S.modal){ S.modal=null; renderModal(); }
+  else if(S.fOpen){ S.fOpen=false; render(); }
 });
 function onBind(e){
   const b=e.target.dataset&&e.target.dataset.bind; if(!b) return;
@@ -2135,6 +2417,7 @@ function onBind(e){
   const [scope,key]=b.split('.');
   if(scope==='login'){ S.login[key]=val; return; }
   if(scope==='ar'){ S.aiRange[key]=val; if(e.type==='change') render(); return; }
+  if(scope==='m'&&S.modal&&S.modal.kind==='teamText'&&key==='head'){ S.modal.head=val; store('dtt.tthead',val); ttRefresh(true); return; }
   if(scope==='m'&&S.modal&&S.modal.kind==='leave'&&(key==='from'||key==='to'||key==='who'||key==='name')){ S.modal[key]=val; if(key==='from'&&val&&(!S.modal.to||S.modal.to<val)) S.modal.to=val; S.modal.confirmDel=null; if(e.type==='change') renderModal(); return; }
   if(scope==='m'&&S.modal&&S.modal.kind==='export'&&(key==='from'||key==='to'||key==='who')){ S.modal[key]=val; if(e.type==='change') renderModal(); return; }
   if(scope==='st'){ S.sets[key]=val; return; }
