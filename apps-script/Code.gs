@@ -15,9 +15,10 @@
  *   員工：自行新增工作、開始、回報、提報完成（送主管確認），只看得到自己的工作
  */
 
-const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報', LEAVES: '請假' };
+const SHEET = { PEOPLE: '人員', TASKS: '代辦事項', LOG: '回報歷程', CONFIG: '設定', REPORTS: '日報', LEAVES: '請假', EVENTS: '行事曆' };
 const REPORT_COLS = ['日期', '姓名', '寄出時間', '回報說明', 'AI摘要', '工作數'];
 const LEAVE_COLS = ['ID', '姓名', '開始日期', '結束日期', '時段', '假別', '原因', '登記人', '登記時間'];
+const EVENT_COLS = ['ID', '日期', '結束日期', '開始時間', '結束時間', '行程', '地點', '參與者', '說明', '建立人', '建立時間'];
 const LEAVE_KINDS = ['特休', '事假', '病假', '公假', '補休', '婚假', '喪假', '產假', '陪產假', '其他'];
 const LEAVE_PARTS = ['全天', '上午', '下午'];
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
@@ -93,6 +94,7 @@ function setup() {
   ensureSheet_(ss, SHEET.CONFIG, ['項目', '值', '說明'], CONFIG_DEFAULTS);
   ensureSheet_(ss, SHEET.REPORTS, REPORT_COLS);
   ensureSheet_(ss, SHEET.LEAVES, LEAVE_COLS).getRange('A:G').setNumberFormat('@');
+  ensureSheet_(ss, SHEET.EVENTS, EVENT_COLS).getRange('A:I').setNumberFormat('@');
   ['工作表1', 'Sheet1'].forEach(n => {
     const s = ss.getSheetByName(n);
     if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
@@ -657,15 +659,18 @@ const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemi
 let LAST_AI_MODEL = '';
 
 /** 呼叫 Gemini；遇到暫時忙碌（429/500/503）會重試，仍失敗就自動改用其他模型 */
-function gemini_(prompt, keyOverride, modelOverride, budgetMs) {
+function gemini_(prompt, keyOverride, modelOverride, budgetMs, opts) {
   const key = keyOverride || geminiKey_();
   if (!key) throw new Error('尚未設定 Gemini API 金鑰：請最高管理者到「系統設定」分頁貼上金鑰');
   const first = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
   const models = [first].concat(FALLBACK_MODELS.filter(m => m !== first));
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
+  opts = opts || {};
+  const req = {
+    systemInstruction: { parts: [{ text: opts.system || '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }]
-  });
+  };
+  if (opts.json) req.generationConfig = { responseMimeType: 'application/json', temperature: 0.1 };
+  const body = JSON.stringify(req);
   const started = Date.now();
   let lastBusy = '';
   for (let mi = 0; mi < models.length; mi++) {
@@ -748,6 +753,59 @@ function api_aiPerson(token, name) {
     '【工作】\n' + (tasks.length ? tasks.map(t => taskBrief_(t, today)).join('\n') : '（無）') +
     '\n\n【近 7 天回報】\n' + (logs.length ? logs.map(l => l.time + ' #' + l.id + ' ' + l.status + ' ' + l.content).join('\n') : '（沒有回報紀錄）');
   return gemini_(prompt);
+}
+
+/** 主管：把打字／貼上的工作清單交給 AI 整理成匯入用的表格列 */
+function api_aiParseTasks(token, text, defaultDue) {
+  mustManager_(token);
+  text = String(text || '').trim();
+  if (!text) throw new Error('請先輸入或貼上工作內容');
+  if (text.length > 20000) throw new Error('文字太長（超過 2 萬字），請分成幾次整理');
+  const people = getPeople_();
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const projects = readTasks_().map(t => t.project).filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 80);
+  const roster = people.map(p => p.name + (p.line && p.line !== p.name ? '（LINE：' + p.line + '）' : '')).join('、');
+  const system = '你是工程顧問公司的專案助理，負責把主管或同仁打的工作清單，整理成系統可以匯入的資料。只輸出 JSON，不要任何說明文字。不可捏造原文沒有的內容。';
+  const prompt = '今天是 ' + today + '（台灣時間）。請把下面的文字整理成工作清單，輸出 JSON 陣列，每一件工作一個物件，欄位：\n' +
+    '- assignee：承辦人姓名，必須是人員名單中的「姓名」；文字中出現 LINE 名稱、全名或暱稱時，換成對應的姓名。像「宇婷預計事項如下：」這類標題，代表後面的工作都屬於這個人，直到出現下一個人。看不出是誰就填空字串。\n' +
+    '- type：有專案名稱填「專案執行」，否則填「臨時代辦」。\n' +
+    '- project：專案或案件名稱（例如「國家住都中心-PMIS案」「北市圖資案」）。通常是工作開頭、逗號前的案名；優先使用既有專案名稱的寫法。沒有就填空字串。\n' +
+    '- content：工作內容本身，去掉編號、案名與括號中的進度說明，保持原意與原用詞。\n' +
+    '- due：需完成日期 yyyy-MM-dd。文字有寫「11/30前完成」「今日完成」「明天」等才填（今日完成＝今天）；沒寫就填空字串，不要自己推測。\n' +
+    '- progress：文字中的百分比數字（例如 40% 或 (69%) 填 40、69），沒有填空字串。\n' +
+    '- status：只能是「未開始」「進行中」「等待外部」「暫停」「完成」或空字串。寫「已完成」→完成；「待○○確認／等待○○／需○○協助」→等待外部；「暫停／暫緩／擱置」→暫停；有進度或「辦理中、調整中、撰寫中」→進行中；看不出來填空字串。\n' +
+    '- waitingFor：狀態是等待外部時，等待的對象（例如「叡揚」「住都中心」），否則空字串。\n' +
+    '- latest：括號或後半段的進度說明（例如「目前辦理至八德三號，先進行其他社宅的元件資訊更新」），沒有填空字串。\n' +
+    '- link：工作下一行或文字中的網址，沒有填空字串。\n' +
+    '忽略開頭的 @提及、問候語與「謝謝」。編號跳號或格式不一致沒關係，每一條工作都要保留，不要合併或刪減。\n\n' +
+    '【人員名單】' + roster + '\n' +
+    '【既有專案名稱】' + (projects.length ? projects.join('、') : '（無）') + '\n\n' +
+    '【要整理的文字】\n' + text;
+  const raw = gemini_(prompt, null, null, 90000, { json: true, system: system });
+  let arr;
+  try {
+    const m = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    arr = JSON.parse(m.slice(m.indexOf('['), m.lastIndexOf(']') + 1));
+  } catch (e) {
+    throw new Error('AI 回傳的格式無法辨識，請再試一次（或把文字分成幾段）');
+  }
+  if (!Array.isArray(arr)) throw new Error('AI 回傳的格式無法辨識，請再試一次');
+  const names = people.map(p => p.name);
+  const byLine = {}; people.forEach(p => { if (p.line) byLine[String(p.line).trim()] = p.name; });
+  const s_ = v => (v == null ? '' : String(v)).trim();
+  const rows = arr.filter(o => o && s_(o.content)).map(o => {
+    let who = s_(o.assignee);
+    if (who && names.indexOf(who) < 0) who = byLine[who] || names.find(n => who.indexOf(n) >= 0 || n.indexOf(who) >= 0) || who;
+    const pg = parseFloat(String(o.progress == null ? '' : o.progress).replace('%', ''));
+    const st = s_(o.status) ? (normStatus_(s_(o.status)) || '') : '';
+    return {
+      assignee: who, type: /臨時/.test(s_(o.type)) || !s_(o.project) ? '臨時代辦' : '專案執行', project: s_(o.project), content: s_(o.content),
+      due: /^\d{4}-\d{2}-\d{2}$/.test(s_(o.due)) ? s_(o.due) : '', progress: isNaN(pg) ? '' : Math.max(0, Math.min(100, Math.round(pg))),
+      status: st === '待確認' ? '進行中' : st, waitingFor: st === '等待外部' ? s_(o.waitingFor) : '', latest: s_(o.latest), link: s_(o.link)
+    };
+  });
+  if (!rows.length) throw new Error('AI 沒有整理出任何工作，請確認文字內容');
+  return { rows: rows, model: LAST_AI_MODEL || '' };
 }
 
 /** 最高管理者：指定區間的員工辦理狀況分析 */
@@ -944,66 +1002,104 @@ function api_deleteLeave(token, id) {
   return r;
 }
 
-/* ───────────── 花園廣場 ───────────── */
+/* ───────────── 行事曆 ───────────── */
 
-/** 廣場資料：每個人的造型、件數（只有數字，不含工作內容）與位置 */
-function api_plaza(token) {
-  const actor = auth_(token);
-  const today = fmt_(new Date(), 'yyyy-MM-dd');
-  const tasks = readTasks_();
-  const props = PropertiesService.getScriptProperties().getProperties();
-  const lv = leaveMap_(readLeaves_(), today);
-  return {
-    me: actor,
-    people: getPeople_().map(p => {
-      const mine = tasks.filter(t => t.assignee === p.name);
-      const open = mine.filter(t => t.status !== '完成');
-      let pos = null;
-      try { pos = props['pos_' + p.name] ? JSON.parse(props['pos_' + p.name]) : null; } catch (e) { pos = null; }
+function readEvents_() {
+  const sh = ss_().getSheetByName(SHEET.EVENTS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, EVENT_COLS.length).getValues()
+    .filter(r => String(r[0]).trim() && String(r[5]).trim())
+    .map(r => {
+      const from = dateStr_(r[1]);
+      const tm = v => v instanceof Date ? fmt_(v, 'HH:mm') : String(v || '').trim().slice(0, 5);
       return {
-        name: p.name, role: p.role, super: !!p.super, gender: p.gender, avatar: p.avatar,
-        open: open.length,
-        overdue: open.filter(t => isOverdue_(t, today)).length,
-        review: open.filter(t => t.status === '待確認').length,
-        waiting: open.filter(t => t.status === '等待外部').length,
-        paused: open.filter(t => t.status === '暫停').length,
-        todo: open.filter(t => t.status === '未開始').length,
-        doneWeek: mine.filter(t => t.status === '完成' && t.doneAt instanceof Date && (Date.now() - t.doneAt.getTime()) < 7 * 864e5).length,
-        bal: open.map(t => isOverdue_(t, today) ? 'od' : t.status === '待確認' ? 'review' : t.status === '等待外部' ? 'wait' : t.status === '暫停' ? 'pause' : t.status === '未開始' ? 'todo' : 'doing')
-          .sort((x, y) => ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(x) - ['od', 'review', 'wait', 'pause', 'doing', 'todo'].indexOf(y)),
-        leave: lv[p.name] || '',
-        x: pos ? pos.x : null, y: pos ? pos.y : null
+        id: String(r[0]).trim(), from: from, to: dateStr_(r[2]) || from, start: tm(r[3]), end: tm(r[4]),
+        title: String(r[5]).trim(), place: String(r[6] || '').trim(), who: String(r[7] || '').trim() || '全員',
+        note: String(r[8] || ''), by: String(r[9] || '').trim()
       };
-    })
+    });
+}
+function eventFor_(e, name) { return e.who === '全員' || supList_(e.who).indexOf(name) >= 0 || e.by === name; }
+
+/** 行事曆：指定區間的行程與請假（主管看全部；員工看自己的與「全員」行程） */
+function api_calendar(token, from, to) {
+  const actor = auth_(token);
+  const me = mustPerson_(getPeople_(), actor);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error('日期區間不正確');
+  const mgr = me.role === '主管';
+  const hit = x => x.from <= to && x.to >= from;
+  return {
+    from: from, to: to,
+    events: readEvents_().filter(e => hit(e) && (mgr || eventFor_(e, actor))),
+    leaves: readLeaves_().filter(l => hit(l) && (mgr || l.name === actor)).map(l => ({ id: l.id, name: l.name, from: l.from, to: l.to, part: l.part, kind: l.kind }))
   };
 }
 
-function api_plazaMove(token, x, y) {
+/** 新增或修改行程：建立的人或主管可以修改 */
+function api_saveEvent(token, ev) {
   const actor = auth_(token);
-  const nx = Math.max(0, Math.min(1200, Math.round(Number(x) || 0)));
-  const ny = Math.max(0, Math.min(720, Math.round(Number(y) || 0)));
-  PropertiesService.getScriptProperties().setProperty('pos_' + actor, JSON.stringify({ x: nx, y: ny, t: Date.now() }));
+  const people = getPeople_();
+  const me = mustPerson_(people, actor);
+  ev = ev || {};
+  const title = String(ev.title || '').trim().slice(0, 100);
+  if (!title) throw new Error('請輸入行程名稱');
+  const from = String(ev.from || '').trim(), to = String(ev.to || ev.from || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw new Error('請選擇日期');
+  if (from > to) throw new Error('結束日期不能早於開始日期');
+  if (dayDiffStr_(from, to) > 60) throw new Error('一個行程最多 60 天');
+  const tm = v => /^\d{1,2}:\d{2}$/.test(String(v || '').trim()) ? ('0' + String(v).trim()).slice(-5) : '';
+  const start = tm(ev.start), end = tm(ev.end);
+  if (start && end && from === to && end < start) throw new Error('結束時間不能早於開始時間');
+  let who = Array.isArray(ev.who) ? ev.who : supList_(ev.who);
+  who = who.map(x => String(x).trim()).filter((x, i, a) => x && a.indexOf(x) === i);
+  if (who.indexOf('全員') >= 0) who = ['全員'];
+  who.forEach(n => { if (n !== '全員' && !findPerson_(people, n)) throw new Error('找不到人員「' + n + '」'); });
+  if (!who.length) who = [actor];
+  const row = [null, from, to, start, end, title, String(ev.place || '').trim().slice(0, 100), who.join('、'), String(ev.note || '').trim().slice(0, 500)];
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = sheet_(SHEET.EVENTS);
+    if (ev.id) {
+      const n = sh.getLastRow() - 1;
+      const ids = n > 0 ? sh.getRange(2, 1, n, 10).getValues() : [];
+      const i = ids.findIndex(r => String(r[0]).trim() === String(ev.id));
+      if (i < 0) throw new Error('找不到這個行程，可能已被刪除');
+      if (me.role !== '主管' && String(ids[i][9]).trim() !== actor) throw new Error('只能修改自己建立的行程');
+      row[0] = ev.id;
+      sh.getRange(i + 2, 1, 1, row.length).setValues([row]);
+    } else {
+      row[0] = 'E' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
+      sh.appendRow(row.concat([actor, new Date()]));
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  return { id: row[0] };
+}
+
+function api_deleteEvent(token, id) {
+  const actor = auth_(token);
+  const me = mustPerson_(getPeople_(), actor);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = sheet_(SHEET.EVENTS);
+    const n = sh.getLastRow() - 1;
+    const ids = n > 0 ? sh.getRange(2, 1, n, 10).getValues() : [];
+    const i = ids.findIndex(r => String(r[0]).trim() === String(id));
+    if (i < 0) throw new Error('找不到這個行程');
+    if (me.role !== '主管' && String(ids[i][9]).trim() !== actor) throw new Error('只能刪除自己建立的行程');
+    sh.deleteRow(i + 2);
+  } finally {
+    lock.releaseLock();
+  }
   return true;
 }
 
-/** 自己換造型（1～30）與性別 */
-function api_setAvatar(token, avatar, gender) {
-  const actor = auth_(token);
-  const a = Math.max(1, Math.min(30, parseInt(avatar, 10) || 1));
-  const g = gender === '女' ? '女' : '男';
-  const sh = sheet_(SHEET.PEOPLE);
-  ensurePeopleCols_();
-  const vals = sh.getDataRange().getValues();
-  const head = vals[0].map(String);
-  const cn = head.indexOf('姓名'), ca = head.indexOf('造型'), cg = head.indexOf('性別');
-  for (let i = 1; i < vals.length; i++) {
-    if (String(vals[i][cn]).trim() === actor) {
-      sh.getRange(i + 1, ca + 1).setValue(a);
-      sh.getRange(i + 1, cg + 1).setValue(g);
-      break;
-    }
-  }
-  return api_plaza(token);
+function eventLine_(e) {
+  return (e.start ? e.start + (e.end ? '～' + e.end : '') + ' ' : '') + e.title + (e.place ? '（' + e.place + '）' : '') +
+    (e.from !== e.to ? '［' + e.from.slice(5).replace('-', '/') + '～' + e.to.slice(5).replace('-', '/') + '］' : '');
 }
 
 /* ───────────── 人員管理（主管） ───────────── */
@@ -1435,6 +1531,7 @@ function dailyDigest_(force) {
 
   const leaves = readLeaves_();
   const lvToday = leaveMap_(leaves, today);
+  const evToday = readEvents_().filter(e => e.from <= today && e.to >= today).sort((a, b) => (a.start || '99') < (b.start || '99') ? -1 : 1);
   // 員工：自己的清單（今天全天請假就不寄）
   people.forEach(p => {
     if (!p.email || lvToday[p.name] === '全天') return;
@@ -1448,6 +1545,8 @@ function dailyDigest_(force) {
       else if (t.status !== '待確認' && (due === tomorrow || due === today)) alerts.push('⏰ ' + (due === today ? '今天' : '明天') + '到期：' + lineCore_(t));
     });
     const ordered = orderTasks_(mine);
+    const myEv = evToday.filter(e => eventFor_(e, p.name));
+    if (myEv.length) alerts.unshift('📅 今日行程：' + myEv.map(eventLine_).join('；'));
     const plain = (alerts.length ? alerts.join('\n') + '\n\n' : '') + text + '\n\n' +
       ordered.map(t => '#' + t.id + ' ' + lineCore_(t)).join('\n') + '\n\n' + SYSTEM_HINT + '\n\n' + multiGuidePlain_(ordered);
     const html = mailShell_(cfg, md + ' 今日預計作業事項',
