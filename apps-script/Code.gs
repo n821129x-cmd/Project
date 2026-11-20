@@ -657,15 +657,18 @@ const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemi
 let LAST_AI_MODEL = '';
 
 /** 呼叫 Gemini；遇到暫時忙碌（429/500/503）會重試，仍失敗就自動改用其他模型 */
-function gemini_(prompt, keyOverride, modelOverride, budgetMs) {
+function gemini_(prompt, keyOverride, modelOverride, budgetMs, opts) {
   const key = keyOverride || geminiKey_();
   if (!key) throw new Error('尚未設定 Gemini API 金鑰：請最高管理者到「系統設定」分頁貼上金鑰');
   const first = modelOverride || String(getConfig_()['Gemini模型'] || DEFAULT_MODEL).trim();
   const models = [first].concat(FALLBACK_MODELS.filter(m => m !== first));
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
+  opts = opts || {};
+  const req = {
+    systemInstruction: { parts: [{ text: opts.system || '你是工程顧問公司的專案助理，使用繁體中文（台灣用語）撰寫，語氣精簡、具體、客觀，不要捏造資料中沒有的內容。輸出用簡單的 Markdown（## 小標、- 條列、**粗體**），不要使用表格。' }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }]
-  });
+  };
+  if (opts.json) req.generationConfig = { responseMimeType: 'application/json', temperature: 0.1 };
+  const body = JSON.stringify(req);
   const started = Date.now();
   let lastBusy = '';
   for (let mi = 0; mi < models.length; mi++) {
@@ -748,6 +751,59 @@ function api_aiPerson(token, name) {
     '【工作】\n' + (tasks.length ? tasks.map(t => taskBrief_(t, today)).join('\n') : '（無）') +
     '\n\n【近 7 天回報】\n' + (logs.length ? logs.map(l => l.time + ' #' + l.id + ' ' + l.status + ' ' + l.content).join('\n') : '（沒有回報紀錄）');
   return gemini_(prompt);
+}
+
+/** 主管：把打字／貼上的工作清單交給 AI 整理成匯入用的表格列 */
+function api_aiParseTasks(token, text, defaultDue) {
+  mustManager_(token);
+  text = String(text || '').trim();
+  if (!text) throw new Error('請先輸入或貼上工作內容');
+  if (text.length > 20000) throw new Error('文字太長（超過 2 萬字），請分成幾次整理');
+  const people = getPeople_();
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const projects = readTasks_().map(t => t.project).filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 80);
+  const roster = people.map(p => p.name + (p.line && p.line !== p.name ? '（LINE：' + p.line + '）' : '')).join('、');
+  const system = '你是工程顧問公司的專案助理，負責把主管或同仁打的工作清單，整理成系統可以匯入的資料。只輸出 JSON，不要任何說明文字。不可捏造原文沒有的內容。';
+  const prompt = '今天是 ' + today + '（台灣時間）。請把下面的文字整理成工作清單，輸出 JSON 陣列，每一件工作一個物件，欄位：\n' +
+    '- assignee：承辦人姓名，必須是人員名單中的「姓名」；文字中出現 LINE 名稱、全名或暱稱時，換成對應的姓名。像「宇婷預計事項如下：」這類標題，代表後面的工作都屬於這個人，直到出現下一個人。看不出是誰就填空字串。\n' +
+    '- type：有專案名稱填「專案執行」，否則填「臨時代辦」。\n' +
+    '- project：專案或案件名稱（例如「國家住都中心-PMIS案」「北市圖資案」）。通常是工作開頭、逗號前的案名；優先使用既有專案名稱的寫法。沒有就填空字串。\n' +
+    '- content：工作內容本身，去掉編號、案名與括號中的進度說明，保持原意與原用詞。\n' +
+    '- due：需完成日期 yyyy-MM-dd。文字有寫「11/30前完成」「今日完成」「明天」等才填（今日完成＝今天）；沒寫就填空字串，不要自己推測。\n' +
+    '- progress：文字中的百分比數字（例如 40% 或 (69%) 填 40、69），沒有填空字串。\n' +
+    '- status：只能是「未開始」「進行中」「等待外部」「暫停」「完成」或空字串。寫「已完成」→完成；「待○○確認／等待○○／需○○協助」→等待外部；「暫停／暫緩／擱置」→暫停；有進度或「辦理中、調整中、撰寫中」→進行中；看不出來填空字串。\n' +
+    '- waitingFor：狀態是等待外部時，等待的對象（例如「叡揚」「住都中心」），否則空字串。\n' +
+    '- latest：括號或後半段的進度說明（例如「目前辦理至八德三號，先進行其他社宅的元件資訊更新」），沒有填空字串。\n' +
+    '- link：工作下一行或文字中的網址，沒有填空字串。\n' +
+    '忽略開頭的 @提及、問候語與「謝謝」。編號跳號或格式不一致沒關係，每一條工作都要保留，不要合併或刪減。\n\n' +
+    '【人員名單】' + roster + '\n' +
+    '【既有專案名稱】' + (projects.length ? projects.join('、') : '（無）') + '\n\n' +
+    '【要整理的文字】\n' + text;
+  const raw = gemini_(prompt, null, null, 90000, { json: true, system: system });
+  let arr;
+  try {
+    const m = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    arr = JSON.parse(m.slice(m.indexOf('['), m.lastIndexOf(']') + 1));
+  } catch (e) {
+    throw new Error('AI 回傳的格式無法辨識，請再試一次（或把文字分成幾段）');
+  }
+  if (!Array.isArray(arr)) throw new Error('AI 回傳的格式無法辨識，請再試一次');
+  const names = people.map(p => p.name);
+  const byLine = {}; people.forEach(p => { if (p.line) byLine[String(p.line).trim()] = p.name; });
+  const s_ = v => (v == null ? '' : String(v)).trim();
+  const rows = arr.filter(o => o && s_(o.content)).map(o => {
+    let who = s_(o.assignee);
+    if (who && names.indexOf(who) < 0) who = byLine[who] || names.find(n => who.indexOf(n) >= 0 || n.indexOf(who) >= 0) || who;
+    const pg = parseFloat(String(o.progress == null ? '' : o.progress).replace('%', ''));
+    const st = s_(o.status) ? (normStatus_(s_(o.status)) || '') : '';
+    return {
+      assignee: who, type: /臨時/.test(s_(o.type)) || !s_(o.project) ? '臨時代辦' : '專案執行', project: s_(o.project), content: s_(o.content),
+      due: /^\d{4}-\d{2}-\d{2}$/.test(s_(o.due)) ? s_(o.due) : '', progress: isNaN(pg) ? '' : Math.max(0, Math.min(100, Math.round(pg))),
+      status: st === '待確認' ? '進行中' : st, waitingFor: st === '等待外部' ? s_(o.waitingFor) : '', latest: s_(o.latest), link: s_(o.link)
+    };
+  });
+  if (!rows.length) throw new Error('AI 沒有整理出任何工作，請確認文字內容');
+  return { rows: rows, model: LAST_AI_MODEL || '' };
 }
 
 /** 最高管理者：指定區間的員工辦理狀況分析 */

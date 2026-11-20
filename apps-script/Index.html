@@ -387,6 +387,28 @@ table.ppl .acts2{display:flex;gap:6px;justify-content:flex-end}
 .more-list small{display:block;font-size:12.5px;color:var(--muted)}
 .more-list .danger b{color:#C23A72} .more-list .danger .ic{background:var(--pink-soft)}
 .more-h{display:inline-flex;align-items:center;gap:9px}
+.ai-imp{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--purple-line);border-radius:8px;padding:12px 14px;margin-top:4px}
+.ai-imp>div{flex:1;min-width:220px}
+.ai-imp b{display:inline-flex;align-items:center;gap:5px;color:var(--purple-ink);font-size:15px}
+.ai-imp span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+textarea.ai-text{min-height:300px;font-size:14px;line-height:1.7}
+.dialog.wide:has(.prev.ed){max-width:min(1240px,96vw)}
+.prev.ed select.ci{min-width:104px}
+.prev.ed input[type=date].ci{min-width:136px}
+.ai-eg{margin-bottom:12px}
+.ai-eg summary{cursor:pointer;color:var(--blue);font-size:13.5px;font-weight:600}
+.ai-eg .note{margin:8px 0 0}
+.prev.ed td{padding:4px 5px;max-width:none;overflow:visible}
+.prev.ed .ci{border:1px solid transparent;background:transparent;border-radius:4px;padding:5px 6px;font-size:13px;width:100%;min-width:70px;outline:none}
+.prev.ed .ci:hover{border-color:var(--line-2);background:#fff}
+.prev.ed .ci:focus{border-color:var(--blue);background:#fff}
+.prev.ed .ci.w-l{min-width:220px} .prev.ed .ci.w-m{min-width:130px} .prev.ed .ci.w-s{min-width:56px;width:64px}
+.prev.ed td.bad-cell .ci{border-color:#F0A3C3;background:#fff}
+.prev.ed .chk{white-space:nowrap;font-size:12.5px}
+.prev.ed tr.bad .chk{color:#A2275C;white-space:normal;min-width:120px}
+.prev.ed .rm{border:none;background:none;color:var(--faint);font-size:17px;cursor:pointer;padding:2px 6px}
+.prev.ed .rm:hover{color:#C23A72}
+.ddef{font-size:11px;color:var(--amber-ink);display:block;padding-left:6px}
 .tt-adv{background:var(--gray-soft);border-radius:8px;padding:12px 14px;margin-bottom:12px}
 .pz-scroll{overflow-x:auto;scrollbar-width:none}
 .pz-scroll::-webkit-scrollbar{display:none}
@@ -1007,7 +1029,9 @@ function assignHtml(){
       <button class="btn primary" data-act="submitAssign">送出指派</button>
     </div>
     <div class="imp-box">
-      <h3>Excel 批次匯入工作</h3>
+      <h3>批次匯入工作</h3>
+      <div class="ai-imp"><div><b>${SPARK} 打字給 AI 整理</b><span>直接打字或貼上 LINE 的工作清單（例如「宇婷預計事項如下：1. …」），AI 自動整理成表格，確認後一鍵匯入。</span></div><button class="btn ai" data-act="openAiText">${SPARK} 打字給 AI 整理</button></div>
+      <p style="margin-top:12px"><b>或用 Excel 匯入</b></p>
       <p>欄位：<code>類型</code> <code>專案名稱</code> <code>工作內容</code> <code>承辦人</code> <code>需完成日期</code>，選填 <code>連結</code> <code>狀態</code> <code>進度</code> <code>最新回報</code> <code>等待對象</code> <code>完成通知</code>（填「是」＝員工提報完成時寄信通知您）。日期可寫 2026/11/10 或民國 115/11/10。</p>
       <div class="imp-acts">
         <button class="btn" data-act="tpl" data-v="tasks">下載範本</button>
@@ -1203,6 +1227,93 @@ function pickFile(kind){
   };
   fileInput.click();
 }
+/* ═════════ 打字給 AI 整理 ═════════ */
+const AI_COLS=[['assignee','承辦人'],['type','類型'],['project','專案名稱'],['content','工作內容'],['due','需完成日期'],['status','狀態'],['progress','進度'],['latest','最新回報'],['waitingFor','等待對象'],['link','連結']];
+function aiPrepRows(rows,defDue){
+  return rows.map((r,i)=>{
+    const o={_row:i+1};
+    AI_COLS.forEach(c=>{ o[c[0]]=r[c[0]]==null?'':r[c[0]]; });
+    o.due=normDate(o.due); if(!o.due){ o.due=defDue; o._dueDef=true; }
+    o.type=/臨時/.test(String(o.type))||!o.project?'臨時代辦':'專案執行';
+    if(['未開始','進行中','等待外部','暫停','完成'].indexOf(o.status)<0) o.status='';
+    o._err=checkRow('tasks',o);
+    return o;
+  });
+}
+function aiCell(r,i,k){
+  const v=r[k]==null?'':r[k], at=`data-air="${i}" data-k="${k}"`;
+  if(k==='assignee') return `<select class="ci" ${at}><option value="">（請選擇）</option>${S.people.map(p=>`<option ${p.name===v?'selected':''}>${esc(p.name)}</option>`).join('')}${v&&!S.people.some(p=>p.name===v)?`<option selected>${esc(v)}</option>`:''}</select>`;
+  if(k==='type') return `<select class="ci" ${at}>${['專案執行','臨時代辦'].map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
+  if(k==='status') return `<select class="ci" ${at}>${['','未開始','進行中','等待外部','暫停','完成'].map(x=>`<option value="${x}" ${x===v?'selected':''}>${x||'（未開始）'}</option>`).join('')}</select>`;
+  if(k==='due') return `<input class="ci" type="date" ${at} value="${esc(v)}">${r._dueDef?'<span class="ddef">預設日期</span>':''}`;
+  if(k==='progress') return `<input class="ci w-s" type="number" min="0" max="100" ${at} value="${esc(v)}" placeholder="%">`;
+  const w=k==='content'||k==='latest'?'w-l':'w-m';
+  return `<input class="ci ${w}" ${at} value="${esc(v)}" ${k==='project'?'list="projList"':''}>`;
+}
+function aiSummary(m){
+  const bad=m.rows.filter(r=>r._err).length, by={};
+  m.rows.forEach(r=>{ if(!r._err) by[r.assignee]=(by[r.assignee]||0)+1; });
+  const who=Object.keys(by).map(n=>n+' '+by[n]).join('、');
+  return `<div class="${bad?'errlist':'oklist'}" id="aiSum">整理出 <b>${m.rows.length}</b> 件，可匯入 <b>${m.rows.length-bad}</b> 件${who?'（'+esc(who)+'）':''}${bad?`；<b>${bad}</b> 件需要修正（粉紅色列）`:''}${m.model?`<span style="font-weight:400;opacity:.7">　由 ${esc(m.model)} 整理</span>`:''}</div>`;
+}
+function aiImportBody(m){
+  const errK=r=>{ const e=r._err||''; return {assignee:/承辦人|人員表/.test(e),content:/工作內容/.test(e),due:/日期/.test(e)}; };
+  return aiSummary(m)+`<div class="prev ed" style="max-height:52vh"><table><thead><tr><th>#</th>${AI_COLS.map(c=>`<th>${c[1]}</th>`).join('')}<th>檢查</th><th></th></tr></thead>
+    <tbody>${m.rows.map((r,i)=>{ const ek=errK(r); return `<tr class="${r._err?'bad':''}" id="air${i}"><td>${i+1}</td>${AI_COLS.map(c=>`<td class="${ek[c[0]]?'bad-cell':''}">${aiCell(r,i,c[0])}</td>`).join('')}<td class="chk">${r._err?esc(r._err):'✓'}</td><td><button class="rm" data-act="aiRm" data-v="${i}" title="刪除這一列">×</button></td></tr>`; }).join('')}</tbody></table></div>
+    ${projDatalist()}
+    <label class="check" style="margin-top:14px"><input type="checkbox" data-bind="m.notify" ${m.notify?'checked':''}> 寄 Email 通知承辦人（每位承辦人只收一封彙整通知）</label>`;
+}
+function aiRowChanged(el){
+  const m=S.modal; if(!m||!m.ai) return;
+  const i=+el.dataset.air, k=el.dataset.k, r=m.rows[i]; if(!r) return;
+  r[k]=k==='progress'?(el.value===''?'':Math.max(0,Math.min(100,Math.round(+el.value)))):el.value.trim();
+  if(k==='due') r._dueDef=false;
+  r._err=checkRow('tasks',r);
+  const tr=$('#air'+i); if(tr){ tr.className=r._err?'bad':''; const c=tr.querySelector('.chk'); if(c) c.textContent=r._err||'✓'; if(k==='due'){ const d=tr.querySelector('.ddef'); if(d) d.remove(); } }
+  const ek={assignee:/承辦人|人員表/.test(r._err),content:/工作內容/.test(r._err),due:/日期/.test(r._err)};
+  if(tr) tr.querySelectorAll('[data-k]').forEach(x=>x.parentNode.classList.toggle('bad-cell',!!ek[x.dataset.k]));
+  const sum=$('#aiSum'); if(sum) sum.outerHTML=aiSummary(m);
+  const go=$('#aiGo'), good=m.rows.filter(x=>!x._err).length; if(go){ go.disabled=!good; go.textContent='匯入 '+good+' 件'; }
+}
+document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.air!=null) aiRowChanged(e.target); });
+/* 沒有 AI 金鑰（或預覽模式）時的簡易規則整理 */
+function ruleParse(text){
+  const names=S.people.map(p=>p.name).sort((a,b)=>b.length-a.length);
+  const projs=(S.projects||[]).slice().sort((a,b)=>b.length-a.length);
+  const out=[]; let who='', last=null;
+  String(text||'').split(/\r?\n/).forEach(raw=>{
+    const line=raw.replace(/@\S+/g,'').trim(); if(!line) return;
+    if(/^https?:/i.test(line)){ if(last&&!last.link) last.link=line; return; }
+    const head=!/^\d+\s*[.、．)）]?\s+/.test(line)&&/(如下|事項|工作)\s*[:：]?\s*$/.test(line);
+    if(head||/^[^\d\s]{1,6}\s*[:：]\s*$/.test(line)){
+      const n=names.find(n=>line.indexOf(n)>=0); if(n){ who=n; return; }
+      const raw2=line.replace(/(今日|今天)?(預計|作業|工作)?(事項|工作)?(說明)?如下.*$|[:：]\s*$/,'').trim();
+      if(raw2&&raw2.length<=6&&!/代辦|事項|說明/.test(raw2)){ who=raw2; return; }
+      if(head) return;
+    }
+    const mm=line.match(/^(\d+)\s*[.、．)）]?\s*(.+)$/); if(!mm) return;
+    let t=mm[2].trim(), latest='', progress='', due='', status='';
+    const pc=t.match(/(\d{1,3})\s*[%％]/g); if(pc){ progress=Math.min(100,parseInt(pc[pc.length-1],10)); t=t.replace(/[（(]?\s*\d{1,3}\s*[%％]\s*[)）]?/g,'').trim(); }
+    const parts=[]; let par;
+    while((par=t.match(/[（(]([^（）()]+)[）)]\s*$/))){ parts.unshift(par[1].trim()); t=t.slice(0,par.index).trim(); }
+    if(!parts.length&&(par=t.match(/[（(]([^（）()]{4,})[）)]/))){ parts.push(par[1].trim()); t=t.replace(par[0],'').trim(); }
+    latest=parts.filter(Boolean).join('；');
+    const all=t+' '+latest;
+    const dm=all.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*前/); if(dm) due=normDate(dm[1]+'/'+dm[2]);
+    else if(/今日完成|今天完成/.test(all)) due=S.today;
+    if(/已完成(?!提供|確認)/.test(latest)&&!/未完成|待/.test(latest)) status='完成';
+    else if(/待[^完]{1,8}(確認|回覆|協助|提供)|等待|需.{1,6}協助/.test(all)) status='等待外部';
+    else if(/暫停|暫緩|擱置/.test(all)) status='暫停';
+    else if(progress!==''||/中[）)，,]|中$|辦理中|調整中|撰寫中|測試中|確認中/.test(all)) status='進行中';
+    let project=projs.find(p=>t.indexOf(p)===0)||'';
+    if(project) t=t.slice(project.length).replace(/^[，,、\s]+/,'');
+    else { const cm=t.match(/^([^，,]{2,20}?案)[，,\s]+(.+)$/); if(cm){ project=cm[1].trim(); t=cm[2].trim(); } }
+    last={assignee:who,type:project?'專案執行':'臨時代辦',project,content:t.replace(/[。．]+$/,''),due,progress,status,latest,waitingFor:'',link:''};
+    out.push(last);
+  });
+  return out;
+}
+
 function importModalBody(m){
   const spec=IMPORT_SPEC[m.what];
   const bad=m.rows.filter(r=>r._err).length, skip=m.rows.filter(r=>!r._err&&r._skip).length, good=m.rows.length-bad-skip;
@@ -2072,6 +2183,23 @@ function renderModal(){
   else if(m.kind==='avatar'){
     html=shell('換造型','選一個喜歡的造型，大家在花園廣場都會看到',pzAvatarBody(m),cancel+`<button class="btn primary" data-act="pzSave">儲存造型</button>`,true);
   }
+  else if(m.kind==='aiText'){
+    const n=String(m.text||'').trim().length;
+    html=shell(`${SPARK} 打字給 AI 整理`,S.aiEnabled?'貼上或打字，AI 會整理成匯入用的表格，確認後再匯入':'尚未設定 AI 金鑰，先用簡易規則整理（準確度較低，請仔細確認）',`
+      <details class="ai-eg"><summary>看寫法範例</summary><div class="note">寫法隨意，例如：<br>宇婷預計事項如下：<br>1. 北市圖資案，福國總結紀錄撰寫（修正總結紀錄）<br>2. 桃園服務建議書準備（依需求書辦理中）40%<br>https:\/\/reurl.cc/xxxx<br>宜真作業事項如下：…<br>
+        <span class="muted">人名會對應到人員名單；括號裡的說明會放到「最新回報」，百分比會放到「進度」，網址會放到「連結」。</span></div></details>
+      <textarea class="inp ai-text" data-bind="m.text" placeholder="在這裡打字或貼上 LINE 的工作清單…">${esc(m.text||'')}</textarea>
+      <div class="range-row" style="margin-top:12px">
+        <div class="field"><label>沒寫日期的工作，需完成日期設為</label><input class="inp" type="date" data-bind="m.defDue" value="${esc(m.defDue)}"></div>
+        <div class="pills" style="padding-bottom:6px">${[['7','一週後'],['14','兩週後'],['30','一個月後']].map(x=>`<button class="pill ${m.defDue===addDays(S.today,+x[0])?'on':''}" data-act="aiDue" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
+      </div>`,
+      `<button class="btn" data-act="closeModal">取消</button><button class="btn ai" data-act="aiParse" ${m.loading?'disabled':''}>${m.loading?'<span class="spin"></span> AI 整理中，約 10～40 秒…':SPARK+(S.aiEnabled?' AI 整理成表格':' 整理成表格')}</button>`,true);
+  }
+  else if(m.kind==='import'&&m.ai){
+    const good=m.rows.filter(r=>!r._err).length;
+    html=shell(`${SPARK} AI 整理結果（確認後匯入）`,'每一格都可以直接修改；有問題的列會標成粉紅色，修正後就能匯入',aiImportBody(m),
+      `<button class="btn left" data-act="aiBack">← 修改文字</button><button class="btn" data-act="aiXlsx">📥 下載 Excel</button><button class="btn primary" id="aiGo" data-act="doImport" ${good?'':'disabled'}>匯入 ${good} 件</button>`,true);
+  }
   else if(m.kind==='import'){
     const n=m.rows.filter(r=>!r._err).length;
     const n2=m.rows.filter(r=>!r._err&&!r._skip).length;
@@ -2257,8 +2385,36 @@ const A = {
   submitDelete(){ run('api_delete',[S.modal.id],'已刪除'); },
   tpl(el){ downloadTemplate(el.dataset.v); },
   pickFile(el){ if(el.dataset.v==='people'&&!S.admin){ loadAdmin().then(()=>pickFile('people')); return; } pickFile(el.dataset.v); },
+  openAiText(){ S.modal={kind:'aiText',color:'#8A55D6',text:load('dtt.aitext')||'',defDue:addDays(S.today,7)}; renderModal(); setTimeout(()=>{ const t=document.querySelector('.ai-text'); if(t) t.focus(); },50); },
+  aiDue(el){ S.modal.defDue=addDays(S.today,+el.dataset.v); renderModal(); },
+  aiParse(){
+    const m=S.modal, text=String(m.text||'').trim();
+    if(!text) return toast('請先打字或貼上工作內容',true);
+    if(!m.defDue) return toast('請選擇預設的需完成日期',true);
+    store('dtt.aitext',text);
+    const done=res=>{
+      if(S.modal!==m) return;
+      const rows=aiPrepRows(res.rows||[],m.defDue);
+      if(!rows.length){ m.loading=false; renderModal(); return toast('沒有整理出任何工作，請確認文字內容',true); }
+      S.modal={kind:'import',what:'tasks',ai:true,rows,file:'AI 整理結果',model:res.model||(S.aiEnabled&&!IS_DEMO?'':'簡易規則'),notify:false,color:'#8A55D6',src:{text,defDue:m.defDue}};
+      renderModal();
+    };
+    if(!S.aiEnabled&&!IS_DEMO) return done({rows:ruleParse(text),model:'簡易規則'});
+    m.loading=true; renderModal();
+    api('api_aiParseTasks',S.token,text,m.defDue).then(done).catch(err=>{ m.loading=false; if(S.modal===m) renderModal(); onErr(err); });
+  },
+  aiBack(){ const s=S.modal.src||{}; S.modal={kind:'aiText',color:'#8A55D6',text:s.text||'',defDue:s.defDue||addDays(S.today,7)}; renderModal(); },
+  aiRm(el){ const m=S.modal; m.rows.splice(+el.dataset.v,1); if(!m.rows.length){ A.aiBack(); return; } renderModal(); },
+  aiXlsx(){
+    if(!xlsxReady()) return;
+    const m=S.modal, spec=IMPORT_SPEC.tasks, keys=spec.cols.map(c=>c[0]);
+    const aoa=[spec.cols.map(c=>c[1]),...m.rows.map(r=>keys.map(k=>k==='due'&&r.due?r.due.split('-').join('\/'):(r[k]==null?'':r[k])))];
+    const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=spec.cols.map(c=>({wch:c[0]==='content'||c[0]==='latest'?40:12}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'工作');
+    try{ XLSX.writeFile(wb,'AI整理_工作匯入_'+S.today+'.xlsx'); toast('已下載 Excel，之後也可以用「選擇 Excel 檔匯入」'); }catch(e){ toast('瀏覽器不允許下載',true); }
+  },
   doImport(){
-    const m=S.modal, rows=m.rows.filter(r=>!r._err&&!r._skip).map(r=>{ const o={...r}; delete o._err; delete o._skip; return o; });
+    const m=S.modal, rows=m.rows.filter(r=>!r._err&&!r._skip).map(r=>{ const o={}; Object.keys(r).forEach(k=>{ if(k[0]!=='_'||k==='_row') o[k]=r[k]; }); return o; });
     const fn=m.what==='tasks'?'api_importTasks':(m.what==='progress'?'api_batchReport':'api_importPeople');
     const args=m.what==='tasks'?[rows,!!m.notify]:[rows];
     const skipped=m.rows.length-rows.length;
@@ -2266,6 +2422,7 @@ const A = {
     api(fn,S.token,...args).then(res=>{
       document.body.classList.remove('busy');
       applyData(res.data); if(res.people) S.admin=res.people;
+      if(m.ai) store('dtt.aitext',null);
       const summary=m.what==='tasks'?`已匯入 ${res.added} 件工作`:(m.what==='progress'?`已更新 ${res.updated} 件工作的進度`:`新增 ${res.added} 人、更新 ${res.updated} 人`);
       S.modal={kind:'importResult',summary:summary+(skipped?`；預覽時已略過 ${skipped} 列`:''),errors:res.errors||[]};
       render();
@@ -2539,6 +2696,7 @@ const Demo=(()=>{
     api_saveSettings(a,v){ if(v.clearKey){ demoSet.hasKey=false; demoSet.keyMasked=''; } else if(v.key){ demoSet.hasKey=true; demoSet.keyMasked=v.key.slice(0,4)+'••••••••'+v.key.slice(-4); }
       ['model','salutation','title','reportTo','url','digestHour','reminderTime'].forEach(k=>{ if(v[k]!=null) demoSet[k]=v[k]; }); return {settings:{...demoSet},data:boot(a)}; },
     api_testAi(a,key){ if(!key&&!demoSet.hasKey) throw new Error('尚未設定金鑰'); return '連線成功（預覽模式）'; },
+    api_aiParseTasks(a,text){ mustMgr(a); return {rows:ruleParse(text),model:'預覽模式（簡易規則）'}; },
     api_aiDaily(a){ return '- 完成福國社宅初驗複驗總結會議紀錄確認，已提報主管\n- 建築模組案期末報告持續修正，第三季執委會會議紀錄進度 75%\n- **北市圖資案**仍在等待叡揚報價，已逾期 2 天，可能需要主管協助催辦\n- 明日重點：完成會議紀錄併入報告書、再次追蹤叡揚'; },
     api_prepareDailyReport(a,text,ai){ const p=ppl.find(x=>x.name===a); if(!p.email) throw new Error('NEED_EMAIL'); reported[a]=true;
       const sup=String(p.supervisor||'').split('、').map(n=>ppl.find(x=>x.name===n)).filter(Boolean);
